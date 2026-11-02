@@ -10,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,7 +41,6 @@ import type { UserProfile } from "@/services/userProfileService";
 import type { WallItem, WallMemory } from "@/types/memoryWall";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useQrModal } from "@/context/QrModalContext";
-import QRCodeSvg from "@/components/web/QRCodeSvg";
 
 // Mock Data: Mentors
 const MENTORS_DATA: MentorData[] = [
@@ -476,6 +476,7 @@ export default function HomeScreen() {
   );
   const [profile, setProfile] = useState<UserProfile>(() => userProfileService.getProfile());
   const [homeSearch, setHomeSearch] = useState("");
+  const { width: windowWidth } = useWindowDimensions();
   const { isWeb } = useResponsive();
   const { openQrModal } = useQrModal();
   const [reflectionInput, setReflectionInput] = useState("");
@@ -729,45 +730,37 @@ export default function HomeScreen() {
           </View>
 
           
-          {/* Responsive QR Code Hero Card on Web */}
+          {/* Open the app install popup from this compact home banner. */}
           {isWeb && (
-            <View style={styles.webQrHeroCard}>
-              <View style={styles.webQrHeroLeft}>
-                <View style={styles.webQrBadge}>
-                  <Ionicons name="phone-portrait-outline" size={13} color={Palette.oceanTeal} />
-                  <Text style={styles.webQrBadgeText}>MOBILE APP & PWA READY</Text>
-                </View>
-                <Text style={styles.webQrHeroTitle}>Experience Honour Your Mentor on your phone</Text>
-                <Text style={styles.webQrHeroDesc}>
-                  Scan this QR code with your mobile camera to access your tributes, receive birthday reminders, and install as an app.
-                </Text>
-                <View style={styles.webQrHeroActionRow}>
-                  <TouchableOpacity
-                    style={styles.webQrHeroBtn}
-                    onPress={() => openQrModal("https://onodem.com", "show")}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="qr-code" size={15} color="#FFFFFF" />
-                    <Text style={styles.webQrHeroBtnText}>Scan QR Code</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.webQrHeroSecondaryBtn}
-                    onPress={() => openQrModal("https://onodem.com", "scan")}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="camera-outline" size={15} color="#FFFFFF" />
-                    <Text style={styles.webQrHeroSecondaryBtnText}>Camera Scanner</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.webQrHeroRight}
-                onPress={() => openQrModal("https://onodem.com", "show")}
-                activeOpacity={0.9}
+            <View
+              style={[
+                styles.webQrPrompt,
+                windowWidth < 480 && styles.webQrPromptNarrow,
+              ]}
+            >
+              <View
+                style={[
+                  styles.webQrPromptIcon,
+                  windowWidth < 480 && styles.webQrPromptIconNarrow,
+                ]}
               >
-                <QRCodeSvg value="https://onodem.com" size={114} color="#000000" backgroundColor="#FFFFFF" />
-                <Text style={styles.webQrScanLabel}>Click to scan / enlarge</Text>
+                <Ionicons name="phone-portrait-outline" size={28} color="#111111" />
+              </View>
+              <View style={styles.webQrPromptCopy}>
+                <Text style={styles.webQrPromptTitle}>Take your memories with you</Text>
+                <Text style={styles.webQrPromptSubtitle}>Birthday reminders and tributes, wherever you are.</Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.webQrPromptButton,
+                  windowWidth < 480 && styles.webQrPromptButtonNarrow,
+                ]}
+                onPress={() => openQrModal("https://onodem.com", "show")}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Get the app"
+              >
+                <Text style={styles.webQrPromptButtonText}>Get the app</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1608,109 +1601,72 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingRight: 6,
   },
-  webQrHeroCard: {
+  webQrPrompt: {
     marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
+    marginBottom: 18,
+    backgroundColor: "#171717",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 18,
+    gap: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
-    flexWrap: "wrap",
+    borderColor: "#303030",
   },
-  webQrHeroLeft: {
-    flex: 1,
-    minWidth: 240,
-  },
-  webQrBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Palette.mintMist,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  webQrBadgeText: {
-    fontSize: 10.5,
-    fontWeight: "800",
-    color: Palette.oceanTeal,
-    letterSpacing: 0.8,
-  },
-  webQrHeroTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: Palette.textPrimary,
-    lineHeight: 22,
-    marginBottom: 6,
-  },
-  webQrHeroDesc: {
-    fontSize: 12.5,
-    color: Palette.textSecondary,
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  webQrHeroActionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  webQrHeroBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Palette.oceanTeal,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  webQrHeroBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12.5,
-    fontWeight: "700",
-  },
-  webQrHeroSecondaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Palette.mintMist,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#CFE3DC",
-  },
-  webQrHeroSecondaryBtnText: {
-    color: Palette.oceanTeal,
-    fontSize: 12.5,
-    fontWeight: "700",
-  },
-  webQrHeroRight: {
+  webQrPromptIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: "#FFB899",
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    flexShrink: 0,
   },
-  webQrScanLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Palette.textMuted,
-    marginTop: 6,
+  webQrPromptNarrow: {
+    flexWrap: "wrap",
+    padding: 14,
+    gap: 10,
+  },
+  webQrPromptIconNarrow: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+  },
+  webQrPromptCopy: {
+    flex: 1,
+    minWidth: 140,
+    gap: 4,
+  },
+  webQrPromptTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
+  },
+  webQrPromptSubtitle: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: "#A1A1A1",
+  },
+  webQrPromptButton: {
+    minWidth: 124,
+    marginLeft: "auto",
+    minHeight: 46,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  webQrPromptButtonNarrow: {
+    minWidth: 112,
+    minHeight: 42,
+  },
+  webQrPromptButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111111",
   },
 
   achievementsScroll: {

@@ -20,11 +20,10 @@ import { memoryService } from "@/services/memoryService";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
 import { tributeDraftService } from "@/services/tributeDraftService";
 import { UserProfile, userProfileService } from "@/services/userProfileService";
-import { getAllStories, WISDOM_LESSON } from "@/data/mockStories";
-import type { LessonQuote, Story } from "@/types/story";
+import { followService } from "@/services/followService";
+import ConnectionsModal from "@/components/profile/ConnectionsModal";
+import VideoUploadModal from "@/components/Create/VideoUploadModal";
 import type { WallItem } from "@/types/memoryWall";
-
-type ProfileActionIcon = keyof typeof Ionicons.glyphMap;
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile>(() =>
@@ -33,46 +32,32 @@ export default function ProfileScreen() {
   const [items, setItems] = useState<WallItem[]>(() =>
     memoryService.getUserCreatedItems()
   );
-  const [bookmarkedStories, setBookmarkedStories] = useState<Story[]>([]);
-  const [savedLessons, setSavedLessons] = useState<LessonQuote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(
-    () => userProfileService.subscribe((nextProfile) => setProfile(nextProfile)),
-    []
-  );
+  // Social Connections & Video Modals
+  const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
+  const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  useEffect(() => {
+    const unsub = userProfileService.subscribe((nextProfile) => setProfile(nextProfile));
+    return () => unsub();
+  }, []);
+
+  const refreshConnections = () => {
+    setFollowersCount(followService.getFollowers().length);
+    setFollowingCount(followService.getFollowing().length);
+  };
 
   useEffect(() => {
     const syncItems = () => setItems(memoryService.getUserCreatedItems());
     const unsubscribeMemory = memoryService.subscribe(syncItems);
     const unsubscribeTributes = tributeDraftService.subscribe(syncItems);
-    const unsubscribeBookmarks = storyBookmarkService.subscribe(syncStories);
-    const unsubscribeLessons = storyBookmarkService.subscribeLessons(syncLessons);
-
-    function syncStories() {
-      const bookmarkedIds = new Set(storyBookmarkService.getBookmarkedStoryIds());
-      setBookmarkedStories(
-        getAllStories().filter((story) => bookmarkedIds.has(story.id))
-      );
-    }
-
-    function syncLessons() {
-      const savedIds = new Set(storyBookmarkService.getSavedLessonIds());
-      const availableLessons: LessonQuote[] = [
-        WISDOM_LESSON,
-        ...getAllStories()
-          .filter((story) => !!story.keyLesson)
-          .map((story) => ({
-            id: story.id,
-            quote: story.keyLesson || "",
-            attribution: story.author,
-            storyTitle: story.title,
-            storyId: story.id,
-          })),
-      ];
-      setSavedLessons(availableLessons.filter((lesson) => savedIds.has(lesson.id)));
-    }
+    const unsubscribeFollow = followService.subscribe(refreshConnections);
 
     let mounted = true;
     Promise.all([
@@ -80,14 +65,14 @@ export default function ProfileScreen() {
       userProfileService.initialize(),
       tributeDraftService.initialize(),
       storyBookmarkService.initialize(),
+      followService.initialize(),
     ])
       .then(() => {
         if (!mounted) return;
         setProfile(userProfileService.getProfile());
         memoryService.getAllMemories();
         syncItems();
-        syncStories();
-        syncLessons();
+        refreshConnections();
         setLoadError(null);
       })
       .catch((error: unknown) => {
@@ -102,12 +87,11 @@ export default function ProfileScreen() {
       mounted = false;
       unsubscribeMemory();
       unsubscribeTributes();
-      unsubscribeBookmarks();
-      unsubscribeLessons();
+      unsubscribeFollow();
     };
   }, []);
 
-  const tributes = (() => {
+  const tributes = useMemo(() => {
     memoryService.getAllMemories();
     return tributeDraftService
       .getSavedKeepsakes()
@@ -129,18 +113,11 @@ export default function ProfileScreen() {
         };
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  })();
-  const memories = useMemo(
-    () => items.filter((item) => item.kind === "memory"),
-    [items]
-  );
-  const pinnedItems = useMemo(
-    () => [
-      ...memoryService.getUserSavedItems().filter((item) => item.kind !== "tribute"),
-      ...tributes.filter((tribute) => tribute.isPinned),
-    ],
-    [tributes]
-  );
+  }, [items]);
+
+  const draftsCount = useMemo(() => {
+    return tributeDraftService.getDrafts().length;
+  }, [items]);
 
   const openMemory = (item: WallItem) => {
     router.push({
@@ -151,7 +128,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor={Palette.iceWhite} />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
@@ -159,16 +136,16 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={23} color={Palette.deepTeal} />
+          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your archive</Text>
+        <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity
           onPress={() => router.push("/settings")}
           style={styles.headerIcon}
           accessibilityRole="button"
           accessibilityLabel="Open settings"
         >
-          <Ionicons name="settings-outline" size={21} color={Palette.deepTeal} />
+          <Ionicons name="settings-outline" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -178,11 +155,14 @@ export default function ProfileScreen() {
       >
         {loadError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Palette.deepTeal} />
+            <Ionicons name="alert-circle-outline" size={18} color="#FF6B6B" />
             <Text style={styles.errorText}>{loadError}</Text>
           </View>
         )}
 
+        {/* ======================================================== */}
+        {/* 1. PROFILE IDENTITY: Photograph, Full Name, Username, Bio*/}
+        {/* ======================================================== */}
         <View style={styles.identityCard}>
           {profile.avatarUri ? (
             <Image
@@ -196,8 +176,8 @@ export default function ProfileScreen() {
             </View>
           )}
           <LinearGradient
-            colors={["transparent", "rgba(0, 0, 0, 0.12)", "rgba(0, 0, 0, 0.94)", "#000000"]}
-            locations={[0, 0.34, 0.7, 1]}
+            colors={["transparent", "rgba(0, 0, 0, 0.2)", "rgba(0, 0, 0, 0.94)", "#000000"]}
+            locations={[0, 0.35, 0.72, 1]}
             style={styles.profileCoverGradient}
             pointerEvents="none"
           />
@@ -207,228 +187,227 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Edit profile photo and information"
           >
-            <Ionicons name="pencil" size={17} color="#FFFFFF" />
+            <Ionicons name="pencil" size={16} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.profileCoverContent}>
-            <Text style={styles.profileName} numberOfLines={2}>
+            <Text style={styles.profileName} numberOfLines={1}>
               {profile.name}
             </Text>
             <Text style={styles.username}>@{profile.username}</Text>
             <Text style={styles.bio} numberOfLines={2}>
-              &ldquo;{profile.bio}&rdquo;
+              &ldquo;{profile.bio || "Preserving the wisdom and memories of my greatest mentors."}&rdquo;
             </Text>
             <TouchableOpacity
               style={styles.editProfileButton}
               onPress={() => router.push("/profile-edit")}
               activeOpacity={0.82}
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
             >
+              <Ionicons name="create-outline" size={14} color="#111111" />
               <Text style={styles.editProfileText}>Edit profile</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.sectionHeadingRow}>
-          <Text style={styles.sectionTitle}>Your keepsakes</Text>
-          <Text style={styles.sectionSubtitle}>What you carry</Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <StatCard
-            count={tributes.length}
-            label="Appreciation"
-            icon="heart-outline"
-            onPress={() => router.push("/tributes")}
-          />
-          <StatCard
-            count={memories.length}
-            label="Memories"
-            icon="images-outline"
-            onPress={() => router.push("/memories")}
-          />
-          <StatCard
-            count={bookmarkedStories.length}
-            label="Stories saved"
-            icon="bookmark-outline"
-            onPress={() => router.push("/saved-items?section=stories")}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={styles.createTributePrompt}
-          onPress={() => router.push("/create-tribute")}
-          activeOpacity={0.82}
-          accessibilityRole="button"
-          accessibilityLabel="Honour someone who helped you grow"
-        >
-          <Ionicons name="heart-outline" size={16} color={Palette.accentSky} />
-          <Text style={styles.createTributePromptText}>
-            Honour someone who helped you grow
-          </Text>
-          <Ionicons name="chevron-forward" size={15} color={Palette.accentSky} />
-        </TouchableOpacity>
-
-        <SectionHeading
-          title="Appreciation Cards"
-          action="View all"
-          onAction={() => router.push("/tributes")}
-        />
-        {isLoading ? (
-          <ActivityIndicator color={Palette.turquoise} style={styles.loader} />
-        ) : tributes.length ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalCards}
-          >
-            {tributes.slice(0, 6).map((tribute) => (
-              <TouchableOpacity
-                key={tribute.id}
-                style={styles.tributeCard}
-                onPress={() => openMemory(tribute)}
-                activeOpacity={0.86}
-                accessibilityRole="button"
-                accessibilityLabel={`Open appreciation card for ${tribute.mentorName}`}
-              >
-                <Image source={{ uri: tribute.photoUri }} style={styles.tributePhoto} />
-                <View style={styles.tributeCardBody}>
-                  <Text style={styles.tributeRelationship}>{tribute.relationship}</Text>
-                  <Text style={styles.tributeName} numberOfLines={1}>
-                    {tribute.mentorName}
-                  </Text>
-                  <Text style={styles.tributeExcerpt} numberOfLines={2}>
-                    {tribute.quote || tribute.story || "An appreciation card kept with gratitude."}
-                  </Text>
-                  <Text style={styles.tributeDate}>{formatDate(tribute.createdAt)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="heart-outline" size={24} color={Palette.oceanTeal} />
-            </View>
-            <Text style={styles.emptyTitle}>There is room for a first.</Text>
-            <Text style={styles.emptyCopy}>
-              Begin with someone whose kindness still guides you.
-            </Text>
+        {/* ======================================================== */}
+        {/* 2. YOUR CONNECTIONS: Followers & Following               */}
+        {/* ======================================================== */}
+        <View style={styles.connectionsSection}>
+          <Text style={styles.sectionHeaderTitle}>Your Connections</Text>
+          <View style={styles.connectionsGrid}>
             <TouchableOpacity
-              style={styles.emptyAction}
-              onPress={() => router.push("/create-tribute")}
-              accessibilityRole="button"
+              onPress={() => {
+                setConnectionsTab("followers");
+                setIsConnectionsOpen(true);
+              }}
+              activeOpacity={0.8}
+              style={styles.connectionCard}
             >
-              <Text style={styles.emptyActionText}>Create your first appreciation card</Text>
-              <Ionicons name="arrow-forward" size={15} color={Palette.pureWhite} />
+              <View style={[styles.connectionIconWrap, { backgroundColor: "rgba(143, 211, 255, 0.12)" }]}>
+                <Ionicons name="people" size={18} color={Palette.accentSky} />
+              </View>
+              <View>
+                <Text style={styles.connectionCount}>{followersCount || 128}</Text>
+                <Text style={styles.connectionLabel}>Followers</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Palette.textMuted} style={styles.connChevron} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setConnectionsTab("following");
+                setIsConnectionsOpen(true);
+              }}
+              activeOpacity={0.8}
+              style={styles.connectionCard}
+            >
+              <View style={[styles.connectionIconWrap, { backgroundColor: "rgba(143, 240, 198, 0.12)" }]}>
+                <Ionicons name="person-add" size={18} color={Palette.accentMint} />
+              </View>
+              <View>
+                <Text style={styles.connectionCount}>{followingCount || 64}</Text>
+                <Text style={styles.connectionLabel}>Following</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Palette.textMuted} style={styles.connChevron} />
             </TouchableOpacity>
           </View>
-        )}
+        </View>
 
+        {/* ======================================================== */}
+        {/* 3. YOUR ACTIVITY: Exact User-Requested 6 Categories      */}
+        {/* ======================================================== */}
+        <View style={styles.activitySection}>
+          <View style={styles.activityHeaderRow}>
+            <Text style={styles.sectionHeaderTitle}>Your Activity</Text>
+            <TouchableOpacity onPress={() => router.push("/create")} style={styles.quickCreateBtn}>
+              <Ionicons name="add" size={15} color="#111111" />
+              <Text style={styles.quickCreateText}>Create</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.activityGrid}>
+            {/* 1. Tributes */}
+            <ActivityCard
+              badgeBg={Palette.accentPink}
+              icon="heart"
+              title="Tributes"
+              count={tributes.length || 3}
+              subtitle="Published tributes"
+              onPress={() => router.push("/tributes")}
+            />
+
+            {/* 2. Appreciation Posts */}
+            <ActivityCard
+              badgeBg={Palette.accentMint}
+              icon="sparkles"
+              title="Appreciation Posts"
+              count={items.length || 7}
+              subtitle="Gratitude dedications"
+              onPress={() => router.push("/memory-wall")}
+            />
+
+            {/* 3. Notes */}
+            <ActivityCard
+              badgeBg={Palette.accentLavender}
+              icon="document-text"
+              title="Notes"
+              count={4}
+              subtitle="Stationery & thoughts"
+              onPress={() => router.push({ pathname: "/creation-studio", params: { mode: "note" } })}
+            />
+
+            {/* 4. Letters */}
+            <ActivityCard
+              badgeBg={Palette.accentPeach}
+              icon="mail"
+              title="Letters"
+              count={2}
+              subtitle="Heartfelt messages"
+              onPress={() => router.push({ pathname: "/creation-studio", params: { mode: "letter" } })}
+            />
+
+            {/* 5. Videos */}
+            <ActivityCard
+              badgeBg={Palette.accentSky}
+              icon="videocam"
+              title="Videos"
+              count={1}
+              subtitle="Spoken reflections"
+              onPress={() => setIsVideoModalOpen(true)}
+            />
+
+            {/* 6. Saved Drafts */}
+            <ActivityCard
+              badgeBg="#FDE047"
+              icon="time"
+              title="Saved Drafts"
+              count={draftsCount || 1}
+              subtitle="Works in progress"
+              onPress={() => router.push("/saved-items")}
+            />
+          </View>
+        </View>
+
+        {/* Bottom Menu Navigation items */}
         <View style={styles.menuCardsContainer}>
           <PastelMenuCard
             badgeBg={Palette.accentMint}
             icon="bookmark"
             title="Saved items"
-            subtitle={`${pinnedItems.length + bookmarkedStories.length + savedLessons.length} mentors and stories`}
+            subtitle="Stories and wisdom bookmarks"
             onPress={() => router.push("/saved-items")}
           />
           <PastelMenuCard
-            badgeBg={Palette.accentLavender}
-            icon="chatbox-ellipses"
-            title="My Appreciation Cards"
-            subtitle={`${tributes.length > 0 ? `${tributes.length} published` : "1 draft Â· 3 published"}`}
-            onPress={() => router.push("/create")}
-          />
-          <PastelMenuCard
-            badgeBg={Palette.accentPink}
-            icon="heart"
-            title="My memories"
-            subtitle={`${memories.length > 0 ? `${memories.length} moments` : "14 moments"}`}
-            onPress={() => router.push("/memory-wall")}
-          />
-          <PastelMenuCard
             badgeBg={Palette.accentSky}
-            icon="notifications"
-            title="Notifications"
-            subtitle="Manage your updates"
-            onPress={() => router.push("/settings")}
-          />
-          <PastelMenuCard
-            badgeBg={Palette.accentPeach}
-            icon="sparkles"
+            icon="settings-outline"
             title="Settings"
-            subtitle="Privacy, account and support"
+            subtitle="Account, privacy and preferences"
             onPress={() => router.push("/settings")}
           />
         </View>
 
         {isLoading && (
-          <Text style={styles.loadingNote}>Loading your saved profile dataÃ¢â‚¬Â¦</Text>
+          <ActivityIndicator color={Palette.accentMint} style={{ marginTop: 20 }} />
         )}
       </ScrollView>
+
+      {/* Floating Bottom Navigation Bar (Active: Profile) */}
       <BottomNavigation activeTab="profile" />
+
+      {/* Connections Modal */}
+      <ConnectionsModal
+        visible={isConnectionsOpen}
+        initialTab={connectionsTab}
+        onClose={() => setIsConnectionsOpen(false)}
+        onConnectionsChanged={refreshConnections}
+      />
+
+      {/* Video Upload Modal */}
+      <VideoUploadModal
+        visible={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        onSuccess={() => setItems(memoryService.getUserCreatedItems())}
+      />
     </SafeAreaView>
   );
 }
 
-function StatCard({
-  count,
-  label,
+function ActivityCard({
+  badgeBg,
   icon,
+  title,
+  count,
+  subtitle,
   onPress,
 }: {
+  badgeBg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
   count: number;
-  label: string;
-  icon: ProfileActionIcon;
+  subtitle: string;
   onPress: () => void;
 }) {
-  const iconColor =
-    label === "Appreciation"
-      ? Palette.accentPink
-      : label === "Memories"
-        ? Palette.accentAmber
-        : Palette.accentSky;
-
   return (
     <TouchableOpacity
-      style={[styles.statCard, label === "Memories" && styles.statCardFeatured]}
+      style={styles.activityCard}
       onPress={onPress}
       activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel={`${count} ${label}. Open collection.`}
+      accessibilityLabel={`${title}, ${count} items. ${subtitle}`}
     >
-      <Ionicons name={icon} size={17} color={iconColor} />
-      <Text style={styles.statNumber}>{count}</Text>
-      <Text style={styles.statLabel} numberOfLines={2}>{label}</Text>
+      <View style={styles.activityCardTop}>
+        <View style={[styles.activityIconWrap, { backgroundColor: badgeBg }]}>
+          <Ionicons name={icon} size={16} color="#111111" />
+        </View>
+        <Text style={styles.activityCount}>{count}</Text>
+      </View>
+      <Text style={styles.activityTitle}>{title}</Text>
+      <Text style={styles.activitySub} numberOfLines={1}>
+        {subtitle}
+      </Text>
     </TouchableOpacity>
   );
 }
 
-function SectionHeading({
-  title,
-  action,
-  onAction,
-}: {
-  title: string;
-  action?: string;
-  onAction?: () => void;
-}) {
-  return (
-    <View style={styles.sectionHeading}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {action && onAction ? (
-        <TouchableOpacity
-          onPress={onAction}
-          accessibilityRole="button"
-          accessibilityLabel={action}
-        >
-          <Text style={styles.sectionAction}>{action}</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
 function PastelMenuCard({
   badgeBg,
   icon,
@@ -448,16 +427,15 @@ function PastelMenuCard({
       onPress={onPress}
       activeOpacity={0.82}
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${subtitle}`}
     >
       <View style={[styles.pastelBadge, { backgroundColor: badgeBg }]}>
-        <Ionicons name={icon} size={20} color="#1A0409" />
+        <Ionicons name={icon} size={18} color="#111111" />
       </View>
       <View style={styles.pastelCardCopy}>
         <Text style={styles.pastelCardTitle}>{title}</Text>
         <Text style={styles.pastelCardSubtitle}>{subtitle}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="rgba(255, 255, 255, 0.45)" />
+      <Ionicons name="chevron-forward" size={17} color={Palette.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -472,18 +450,11 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Palette.iceWhite },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
   header: {
     height: 56,
     paddingHorizontal: 16,
@@ -491,56 +462,60 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: Palette.borderSubtle,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
   },
   headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Palette.surfaceCard,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#161616",
     borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    color: Palette.cream,
-    fontSize: 16,
-    fontWeight: "700",
-    fontStyle: "italic",
-    fontFamily: AppFonts.body,
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    fontFamily: AppFonts.displaySans,
   },
   content: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 132,
+    paddingTop: 14,
+    paddingBottom: 130,
   },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     padding: 12,
-    marginBottom: 12,
-    borderRadius: 13,
-    backgroundColor: Palette.turquoiseSoft,
+    marginBottom: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 107, 107, 0.12)",
   },
-  errorText: { flex: 1, color: Palette.deepTeal, fontSize: 12 },
+  errorText: {
+    flex: 1,
+    color: "#FF6B6B",
+    fontSize: 12,
+  },
   identityCard: {
-    height: 310,
+    height: 320,
     position: "relative",
     overflow: "hidden",
-    borderRadius: 25,
-    backgroundColor: Palette.surfaceCard,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    borderRadius: 26,
+    backgroundColor: "#161616",
+    borderWidth: 1.2,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
     shadowRadius: 14,
-    elevation: 3,
+    elevation: 4,
+    marginBottom: 22,
   },
   profileCoverImage: {
     ...StyleSheet.absoluteFill,
@@ -549,327 +524,222 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Palette.surfaceElevated,
+    backgroundColor: "#202020",
+  },
+  avatarFallback: {
+    fontSize: 48,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   profileCoverGradient: {
     ...StyleSheet.absoluteFill,
   },
   editIcon: {
     position: "absolute",
-    top: 12,
-    right: 12,
+    top: 14,
+    right: 14,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(23, 23, 23, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.18)",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  avatarFallback: {
-    color: Palette.textPrimary,
-    fontSize: 42,
-    fontWeight: "800",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   profileCoverContent: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 14,
+    left: 20,
+    right: 20,
+    bottom: 20,
+    gap: 4,
   },
   profileName: {
+    fontSize: 24,
+    fontWeight: "900",
     color: "#FFFFFF",
-    fontSize: 23,
-    fontWeight: "800",
+    fontFamily: AppFonts.displaySans,
+    letterSpacing: -0.4,
   },
-  username: { marginTop: 1, color: "#E5E5E5", fontSize: 12 },
+  username: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: Palette.accentSky,
+    fontFamily: AppFonts.body,
+  },
   bio: {
-    marginTop: 7,
-    marginBottom: 12,
-    color: Palette.cream,
     fontSize: 13,
+    color: "#D1D5DB",
+    marginTop: 4,
     lineHeight: 18,
     fontFamily: AppFonts.body,
-    fontStyle: "italic",
-    fontWeight: "600",
   },
   editProfileButton: {
-    minHeight: 40,
-    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
     backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.9)",
-  },
-  editProfileText: { color: "#000000", fontSize: 13, fontWeight: "800" },
-  sectionHeadingRow: {
-    marginTop: 20,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    color: Palette.cream,
-    fontSize: 17,
-    fontWeight: "700",
-    fontFamily: AppFonts.body,
-  },
-  sectionSubtitle: { color: Palette.accentSky, fontSize: 9.5 },
-  statsRow: { flexDirection: "row", gap: 7 },
-  statCard: {
-    flex: 1,
-    minHeight: 88,
-    paddingHorizontal: 5,
-    paddingVertical: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 16,
-    backgroundColor: Palette.surfaceCard,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-  },
-  statCardFeatured: {
-    borderColor: "rgba(239, 162, 91, 0.55)",
-  },
-  statNumber: {
-    marginTop: 3,
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "700",
-    fontFamily: AppFonts.body,
-  },
-  statLabel: {
-    marginTop: 1,
-    color: Palette.textSecondary,
-    fontSize: 9,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  createTributePrompt: {
-    minHeight: 38,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(143, 211, 255, 0.45)",
-    backgroundColor: "#050505",
-  },
-  createTributePromptText: {
-    color: Palette.accentSky,
-    fontSize: 10,
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-  sectionHeading: {
-    marginTop: 25,
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionAction: { color: Palette.oceanTeal, fontSize: 12, fontWeight: "800" },
-  loader: { marginVertical: 26 },
-  horizontalCards: { gap: 12, paddingRight: 6, paddingBottom: 4 },
-  tributeCard: {
-    width: 226,
-    overflow: "hidden",
-    borderRadius: 19,
-    backgroundColor: Palette.pureWhite,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-  },
-  tributePhoto: { width: "100%", height: 134, backgroundColor: Palette.mintMist },
-  tributeCardBody: { padding: 13 },
-  tributeRelationship: {
-    color: Palette.turquoise,
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  tributeName: {
-    marginTop: 4,
-    color: Palette.deepTeal,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  tributeExcerpt: {
-    minHeight: 38,
-    marginTop: 5,
-    color: Palette.textSecondary,
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  tributeDate: { marginTop: 8, color: Palette.textMuted, fontSize: 10 },
-  emptyCard: {
-    alignItems: "center",
-    padding: 21,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    backgroundColor: Palette.pureWhite,
-  },
-  emptyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Palette.mintMist,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyTitle: {
-    marginTop: 10,
-    color: Palette.deepTeal,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  emptyCopy: {
-    marginTop: 4,
-    color: Palette.textSecondary,
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  emptyAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 13,
-    backgroundColor: Palette.oceanTeal,
-  },
-  emptyActionText: { color: Palette.pureWhite, fontSize: 12, fontWeight: "800" },
-  savedEmpty: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    padding: 15,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    backgroundColor: Palette.pureWhite,
-  },
-  savedEmptyCopy: { flex: 1 },
-  savedEmptyTitle: { color: Palette.deepTeal, fontSize: 13, fontWeight: "800" },
-  savedEmptySubtitle: { marginTop: 3, color: Palette.textSecondary, fontSize: 11 },
-  savedList: {
-    paddingHorizontal: 13,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    backgroundColor: Palette.pureWhite,
-  },
-  savedRow: {
-    minHeight: 69,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: Palette.borderSubtle,
-  },
-  savedThumb: {
-    width: 45,
-    height: 45,
-    borderRadius: 11,
-    backgroundColor: Palette.mintMist,
-  },
-  savedThumbFallback: {
-    width: 45,
-    height: 45,
-    borderRadius: 11,
-    backgroundColor: Palette.mintMist,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  savedRowCopy: { flex: 1 },
-  savedRowTitle: { color: Palette.deepTeal, fontSize: 12, fontWeight: "800" },
-  savedRowSubtitle: { marginTop: 3, color: Palette.textSecondary, fontSize: 10 },
-  menuCardsContainer: {
-    marginTop: 18,
-    gap: 10,
-    marginBottom: 20,
-  },
-  pastelMenuCard: {
-    backgroundColor: Palette.surfaceCard,
-    borderRadius: 22,
-    paddingVertical: 14,
     paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  editProfileText: {
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#111111",
+    fontFamily: AppFonts.body,
+  },
+  sectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.displaySans,
+    letterSpacing: -0.3,
+  },
+  connectionsSection: {
+    marginBottom: 22,
+  },
+  connectionsGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  connectionCard: {
+    flex: 1,
+    backgroundColor: "#161616",
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     borderWidth: 1.2,
     borderColor: "rgba(255, 255, 255, 0.08)",
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  pastelBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  connectionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+  },
+  connectionCount: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.body,
+  },
+  connectionLabel: {
+    fontSize: 11.5,
+    color: Palette.textSecondary,
+    fontFamily: AppFonts.body,
+  },
+  connChevron: {
+    marginLeft: "auto",
+  },
+  activitySection: {
+    marginBottom: 24,
+  },
+  activityHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  quickCreateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.accentMint,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  quickCreateText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#111111",
+    fontFamily: AppFonts.body,
+  },
+  activityGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  activityCard: {
+    width: "48%",
+    backgroundColor: "#161616",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  activityCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  activityIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activityCount: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.body,
+  },
+  activityTitle: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.body,
+  },
+  activitySub: {
+    fontSize: 11,
+    color: Palette.textSecondary,
+    marginTop: 2,
+    fontFamily: AppFonts.body,
+  },
+  menuCardsContainer: {
+    gap: 10,
+    marginTop: 6,
+  },
+  pastelMenuCard: {
+    backgroundColor: "#161616",
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1.2,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  pastelBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   pastelCardCopy: {
     flex: 1,
   },
   pastelCardTitle: {
-    fontSize: 15.5,
+    fontSize: 14,
     fontWeight: "800",
     color: "#FFFFFF",
-    fontFamily: AppFonts.displaySans,
-    letterSpacing: -0.2,
-  },
-  pastelCardSubtitle: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: Palette.textSecondary,
-    marginTop: 3,
     fontFamily: AppFonts.body,
   },
-  accountCard: {
-    paddingHorizontal: 13,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    backgroundColor: Palette.pureWhite,
-  },
-  accountRow: {
-    minHeight: 69,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: Palette.borderSubtle,
-  },
-  accountRowLast: { borderBottomWidth: 0 },
-  accountIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Palette.mintMist,
-  },
-  accountCopy: { flex: 1 },
-  accountTitle: { color: Palette.deepTeal, fontSize: 12, fontWeight: "800" },
-  accountSubtitle: { marginTop: 3, color: Palette.textSecondary, fontSize: 10 },
-  loadingNote: {
-    marginTop: 18,
+  pastelCardSubtitle: {
+    fontSize: 11.5,
     color: Palette.textSecondary,
-    textAlign: "center",
-    fontSize: 11,
+    marginTop: 2,
+    fontFamily: AppFonts.body,
   },
 });

@@ -1,6 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 
-export type CreationType = "tribute" | "memory" | "letter" | "lesson";
+export type CreationType =
+  | "tribute"
+  | "appreciation"
+  | "note"
+  | "letter"
+  | "memo"
+  | "memory"
+  | "lesson";
 
 export interface CreationOptionItem {
   id: CreationType;

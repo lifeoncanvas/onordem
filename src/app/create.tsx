@@ -6,6 +6,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,9 +34,18 @@ import {
 import { CREATION_OPTIONS, INSPIRATION_PROMPTS } from "@/data/createStudioData";
 import { creationDraftService } from "@/services/creationDraftService";
 import { tributeDraftService } from "@/services/tributeDraftService";
+import VideoUploadModal from "@/components/Create/VideoUploadModal";
 
 function isCreationType(value: string | undefined): value is CreationType {
-  return value === "tribute" || value === "memory" || value === "letter" || value === "lesson";
+  return (
+    value === "tribute" ||
+    value === "appreciation" ||
+    value === "note" ||
+    value === "letter" ||
+    value === "memo" ||
+    value === "memory" ||
+    value === "lesson"
+  );
 }
 
 type CreationRouteParams = {
@@ -51,18 +61,18 @@ function navigateToCreation(
   params: CreationRouteParams,
   replace = false
 ) {
-  if (type === "tribute") {
+  if (type === "tribute" || type === "appreciation") {
     const href = { pathname: "/create-tribute" as const, params };
     if (replace) router.replace(href);
     else router.push(href);
     return;
   }
 
-  if (type === "memory") {
+  if (type === "memo" || type === "memory") {
     const href = { pathname: "/memo" as const, params };
     if (replace) router.replace(href);
     else router.push(href);
-  } else if (type === "lesson") {
+  } else if (type === "note" || type === "lesson") {
     const href = { pathname: "/note" as const, params };
     if (replace) router.replace(href);
     else router.push(href);
@@ -79,6 +89,9 @@ export default function CreateScreen() {
     mentorName?: string;
     relationship?: string;
   }>();
+
+  // Video Modal State
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   // Studio selection
   const [selectedCreationType, setSelectedCreationType] = useState<CreationType>(
@@ -277,13 +290,33 @@ export default function CreateScreen() {
           )}
 
           {/* ======================================================== */}
-          {/* 2. MAIN SECTION: What Would You Like to Create? (4 Cards)*/}
+          {/* 2. MAIN SECTION: What Would You Like to Create? (5 Options)*/}
           {/* ======================================================== */}
           <CreationCardsSection
             options={CREATION_OPTIONS}
             selectedType={selectedCreationType}
             onSelectOption={handleSelectOption}
           />
+
+          {/* Quick Action: Video Keepsake Upload / Record */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={() => setIsVideoModalOpen(true)}
+              activeOpacity={0.85}
+              style={styles.videoUploadBanner}
+            >
+              <View style={styles.videoBannerLeft}>
+                <View style={styles.videoIconCircle}>
+                  <Ionicons name="videocam" size={20} color={Palette.accentSky} />
+                </View>
+                <View>
+                  <Text style={styles.videoBannerTitle}>Upload or Record a Video</Text>
+                  <Text style={styles.videoBannerSub}>Record spoken reflections or upload from gallery</Text>
+                </View>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={Palette.accentSky} />
+            </TouchableOpacity>
+          </View>
 
           {/* ======================================================== */}
           {/* 3. INSPIRATION SECTION: A Thought Worth Keeping          */}
@@ -311,11 +344,49 @@ export default function CreateScreen() {
       {/* Floating Bottom Navigation Bar (Active: Create) */}
       <BottomNavigation activeTab="create" />
 
+      {/* Video Upload Modal */}
+      <VideoUploadModal
+        visible={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  videoUploadBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#161616",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  videoBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  videoIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(143, 211, 255, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoBannerTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  videoBannerSub: {
+    fontSize: 11.5,
+    color: Palette.textSecondary,
+    marginTop: 2,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: Palette.iceWhite,

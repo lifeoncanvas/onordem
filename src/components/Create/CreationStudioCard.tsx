@@ -64,7 +64,7 @@ export default function CreationStudioCard({
   };
 
   const isFeatureCard = item.id === "tribute";
-  const isLessonCard = item.id === "lesson";
+  const isLessonCard = item.id === "lesson" || item.id === "memo";
 
   return (
     <Animated.View
@@ -138,7 +138,7 @@ export default function CreationStudioCard({
             </View>
             <View style={styles.contentWrap}>
               <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={[styles.cardSubtitle, { color: item.id === "memory" ? "#8FD3FF" : "#FFB899" }]}>
+              <Text style={[styles.cardSubtitle, { color: item.accentColor }]}>
                 {item.subtitle}
               </Text>
               <Text style={styles.cardPurpose} numberOfLines={3}>
@@ -161,10 +161,14 @@ function getSpecificCardStyle(type: string) {
   switch (type) {
     case "tribute":
       return styles.tributeCard;
+    case "appreciation":
+      return styles.memoryCard;
+    case "memo":
     case "memory":
       return styles.memoryCard;
     case "letter":
       return styles.letterCard;
+    case "note":
     case "lesson":
       return styles.lessonCard;
     default:
@@ -176,10 +180,14 @@ function getIconWrapperStyle(type: string) {
   switch (type) {
     case "tribute":
       return { backgroundColor: "rgba(255, 158, 207, 0.14)" };
+    case "appreciation":
+      return { backgroundColor: "rgba(143, 240, 198, 0.16)" };
+    case "memo":
     case "memory":
       return { backgroundColor: "rgba(143, 211, 255, 0.14)" };
     case "letter":
       return { backgroundColor: "rgba(255, 184, 153, 0.14)" };
+    case "note":
     case "lesson":
       return { backgroundColor: "rgba(216, 180, 254, 0.16)" };
     default:
@@ -191,10 +199,14 @@ function getIconColor(type: string) {
   switch (type) {
     case "tribute":
       return Palette.accentPink;
+    case "appreciation":
+      return Palette.accentMint;
+    case "memo":
     case "memory":
       return Palette.accentSky;
     case "letter":
       return Palette.accentPeach;
+    case "note":
     case "lesson":
       return Palette.accentLavender;
     default:

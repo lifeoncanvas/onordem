@@ -24,6 +24,7 @@ export default function Register() {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -31,10 +32,20 @@ export default function Register() {
   const handleRegister = async () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+    const normalizedPhone = trimmedPhone.replace(/[\s().-]/g, "");
 
     if (!trimmedName || !trimmedEmail || !password) {
-      setErrorMessage("Please fill in all fields.");
+      setErrorMessage("Please enter your name, email, and password.");
       return;
+    }
+
+    if (trimmedPhone) {
+      const digits = normalizedPhone.replace(/\D/g, "");
+      if (!/^\+?\d+$/.test(normalizedPhone) || digits.length < 7 || digits.length > 15) {
+        setErrorMessage("Enter a valid phone number with country code, or leave it blank.");
+        return;
+      }
     }
 
     if (password.length < 8) {
@@ -51,6 +62,7 @@ export default function Register() {
         name: trimmedName,
         username: trimmedEmail.split("@")[0] || "user",
         email: trimmedEmail,
+        phone: normalizedPhone,
         bio: "Remembering the mentors and guides who shaped my life.",
         avatarUri:
           "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
@@ -59,6 +71,7 @@ export default function Register() {
       const res = await api.auth.register({
         name: trimmedName,
         email: trimmedEmail,
+        phone: normalizedPhone || undefined,
         password: password,
       });
 
@@ -69,6 +82,7 @@ export default function Register() {
             name: res.data.user.name || trimmedName,
             username: res.data.user.username || res.data.user.email?.split("@")[0] || trimmedEmail.split("@")[0],
             email: res.data.user.email || trimmedEmail,
+            phone: res.data.user.phone || normalizedPhone,
             bio: res.data.user.bio || "Remembering the mentors and guides who shaped my life.",
             avatarUri:
               res.data.user.avatarUri ||
@@ -81,8 +95,12 @@ export default function Register() {
       }
     } catch (err: any) {
       const msg = err.message || "Registration failed";
-      if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("duplicate")) {
-        setErrorMessage("An account with this email already exists. Try logging in.");
+      if (
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("already exists") ||
+        msg.toLowerCase().includes("duplicate")
+      ) {
+        setErrorMessage("An account with this email or phone number already exists. Try logging in.");
       } else {
         Alert.alert(
           "Registration Notice",
@@ -170,6 +188,17 @@ export default function Register() {
               autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
+            />
+
+            <TextInput
+              placeholder="Phone number (+country code, optional)"
+              placeholderTextColor={Palette.textMuted}
+              style={styles.input}
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
 
             <TextInput

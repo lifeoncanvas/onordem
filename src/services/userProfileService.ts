@@ -5,6 +5,7 @@ export interface UserProfile {
   name: string;
   username: string;
   email: string;
+  phone?: string;
   bio: string;
   avatarUri: string;
 }
@@ -15,6 +16,7 @@ const DEFAULT_PROFILE: UserProfile = {
   name: "Mentee",
   username: "mentee",
   email: "",
+  phone: "",
   bio: "Remembering the mentors and guides who shaped my life.",
   avatarUri:
     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
@@ -41,7 +43,7 @@ export const userProfileService = {
               if (parsed.name === "Sarita Baiga" || parsed.email === "sarita@example.com") {
                 await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
               } else {
-                profile = parsed;
+                profile = { ...parsed, phone: parsed.phone ?? "" };
               }
             }
           }
@@ -76,6 +78,7 @@ export const userProfileService = {
           name: u.name || profile.name || "Mentee",
           username: u.username || u.email?.split("@")[0] || profile.username || "mentee",
           email: u.email || profile.email || "",
+          phone: u.phone || profile.phone || "",
           bio: u.bio || profile.bio || "Remembering the mentors and guides who shaped my life.",
           avatarUri: u.avatarUri || profile.avatarUri || DEFAULT_PROFILE.avatarUri,
         };
@@ -96,6 +99,7 @@ export const userProfileService = {
       name: (updates.name !== undefined ? updates.name : profile.name).trim() || "Mentee",
       username: (updates.username !== undefined ? updates.username : profile.username).trim().replace(/^@/, ""),
       email: (updates.email !== undefined ? updates.email : profile.email).trim(),
+      phone: (updates.phone !== undefined ? updates.phone : profile.phone || "").trim(),
       bio: (updates.bio !== undefined ? updates.bio : profile.bio).trim(),
       avatarUri: (updates.avatarUri !== undefined ? updates.avatarUri : profile.avatarUri).trim(),
     };

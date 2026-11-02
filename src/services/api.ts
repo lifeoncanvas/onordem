@@ -88,7 +88,7 @@ export async function apiRequest<T = any>(
 export const api = {
   // Authentication
   auth: {
-    register: (data: { name: string; email: string; password: string; username?: string }) =>
+    register: (data: { name: string; email: string; password: string; username?: string; phone?: string }) =>
       apiRequest("/auth/register", { method: "POST", body: JSON.stringify(data) }),
     login: (data: { emailOrUsername: string; password: string }) =>
       apiRequest("/auth/login", { method: "POST", body: JSON.stringify(data) }),
