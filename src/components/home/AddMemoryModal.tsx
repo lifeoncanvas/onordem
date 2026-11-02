@@ -151,6 +151,16 @@ export default function AddMemoryModal({
             {/* Drag Handle */}
             <View style={styles.handle} />
 
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.backBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={20} color={Palette.textPrimary} />
+            </TouchableOpacity>
+
             {/* Header */}
             <View style={styles.headerRow}>
               <View style={styles.headerText}>
@@ -174,6 +184,7 @@ export default function AddMemoryModal({
 
             {/* 2×2 Grid */}
             <ScrollView
+              style={styles.gridScroll}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.gridContent}
             >
@@ -218,7 +229,7 @@ export default function AddMemoryModal({
                     </Text>
 
                     {/* Description */}
-                    <Text style={styles.cardDesc} numberOfLines={3}>
+                    <Text style={styles.cardDesc}>
                       {card.description}
                     </Text>
 
@@ -273,10 +284,10 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.iceWhite,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    height: "92%",
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: Platform.OS === "ios" ? 44 : 28,
-    maxHeight: "92%",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.16,
@@ -293,14 +304,26 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
     marginBottom: 20,
     paddingHorizontal: 4,
   },
+  backBtn: {
+    position: "absolute",
+    top: 10,
+    left: 16,
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Palette.surfaceElevated,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerText: {
     flex: 1,
-    paddingRight: 12,
   },
   sheetTitle: {
     fontSize: 20,
@@ -325,6 +348,9 @@ const styles = StyleSheet.create({
   },
   gridContent: {
     paddingBottom: 8,
+  },
+  gridScroll: {
+    flex: 1,
   },
   grid: {
     flexDirection: "row",

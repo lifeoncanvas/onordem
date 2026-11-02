@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -44,6 +44,8 @@ import BottomNavigation from "@/components/home/BottomNavigation";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
 
 export default function DiscoverScreen() {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const filterSectionY = useRef(0);
   // State for search and filtering
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<RelationshipType>("all");
@@ -273,6 +275,13 @@ export default function DiscoverScreen() {
     selectedCategory !== "all" ||
     selectedThemeId !== undefined;
 
+  const handleFilterPress = () => {
+    if (hasActiveFilters) {
+      handleResetFilters();
+    }
+    scrollViewRef.current?.scrollTo({ y: filterSectionY.current, animated: true });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -282,6 +291,7 @@ export default function DiscoverScreen() {
 
       <Animated.View style={[styles.mainContainer, { opacity: fadeAnim }]}>
         <ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -299,11 +309,7 @@ export default function DiscoverScreen() {
             onChangeText={setSearchQuery}
             onClear={() => setSearchQuery("")}
             isFiltered={hasActiveFilters}
-            onFilterPress={() => {
-              if (hasActiveFilters) {
-                handleResetFilters();
-              }
-            }}
+            onFilterPress={handleFilterPress}
           />
 
           {/* Active Filter Indicators */}
@@ -336,22 +342,26 @@ export default function DiscoverScreen() {
           {/* ======================================================== */}
           {/* 3. EXPLORE BY RELATIONSHIP                               */}
           {/* ======================================================== */}
-          <CategoryList
-            categories={RELATIONSHIP_CATEGORIES}
-            selectedCategory={selectedCategory}
-            onSelectCategory={(cat) => setSelectedCategory(cat)}
-          />
+          <View onLayout={(event) => {
+            filterSectionY.current = event.nativeEvent.layout.y;
+          }}>
+            <CategoryList
+              categories={RELATIONSHIP_CATEGORIES}
+              selectedCategory={selectedCategory}
+              onSelectCategory={(cat) => setSelectedCategory(cat)}
+            />
 
-          {/* ======================================================== */}
-          {/* 4. DISCOVER BY FEELING (Emotional Prompts)               */}
-          {/* ======================================================== */}
-          <FeelingPrompts
-            prompts={FEELING_PROMPTS}
-            selectedThemeId={selectedThemeId}
-            onSelectTheme={(id) => {
-              setSelectedThemeId((prev) => (prev === id ? undefined : id));
-            }}
-          />
+            {/* ======================================================== */}
+            {/* 4. DISCOVER BY FEELING (Emotional Prompts)               */}
+            {/* ======================================================== */}
+            <FeelingPrompts
+              prompts={FEELING_PROMPTS}
+              selectedThemeId={selectedThemeId}
+              onSelectTheme={(id) => {
+                setSelectedThemeId((prev) => (prev === id ? undefined : id));
+              }}
+            />
+          </View>
 
           {/* ======================================================== */}
           {/* 5. STORIES THAT CHANGED A LIFE                           */}

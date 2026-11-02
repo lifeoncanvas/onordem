@@ -65,12 +65,14 @@ export default function CreationStudioCard({
 
   const isFeatureCard = item.id === "tribute";
   const isLessonCard = item.id === "lesson" || item.id === "memo";
+  const isFullWidthCard =
+    isFeatureCard || isLessonCard || item.id === "letter";
 
   return (
     <Animated.View
       style={[
         styles.cardOuter,
-        (isFeatureCard || isLessonCard) && styles.cardOuterFullWidth,
+        isFullWidthCard && styles.cardOuterFullWidth,
         { transform: [{ translateY: liftAnim }, { scale: scaleAnim }] },
       ]}
     >

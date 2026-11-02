@@ -84,6 +84,7 @@ export default function CreationStudioScreen({
   const suppressAutosave = useRef(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const [draftNotice, setDraftNotice] = useState("");
   const [mentorName, setMentorName] = useState(getParam(params.mentorName));
   const [relationship, setRelationship] = useState(getParam(params.relationship) || "Mentor");
   const [title, setTitle] = useState("");
@@ -274,9 +275,10 @@ export default function CreationStudioScreen({
   const handleSaveDraft = async () => {
     try {
       await persistDraft(formData);
-      Alert.alert("Draft saved", "Your writing and design choices are saved in your creation studio.");
+      setDraftNotice("Draft saved. Your writing and design choices are in your creation studio.");
     } catch (error) {
       console.error("Unable to save creation draft:", error);
+      setDraftNotice("Your draft could not be saved. Please try again.");
       Alert.alert("Draft not saved", "Your draft could not be saved. Please try again.");
     }
   };
@@ -483,8 +485,10 @@ export default function CreationStudioScreen({
           <Pressable
             onPress={() => setIsPreviewVisible(true)}
             style={styles.previewLink}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`Preview ${isMemo ? "memo" : isLetter ? "letter" : "note"}`}
+            accessibilityHint="Opens a preview of your current writing"
           >
             <Ionicons name="eye-outline" size={17} color={accent} />
             <Text style={[styles.previewLinkText, { color: accent }]}>
@@ -492,6 +496,11 @@ export default function CreationStudioScreen({
             </Text>
           </Pressable>
         </View>
+        {draftNotice ? (
+          <Text style={styles.draftNotice} accessibilityRole="alert">
+            {draftNotice}
+          </Text>
+        ) : null}
 
         <ScrollView
           style={styles.flex}
@@ -1076,6 +1085,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#171717", alignItems: "center", justifyContent: "center" },
   topTitleWrap: { flex: 1 },
   draftButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: "#171717" },
+  draftNotice: { color: Palette.accentMint, fontSize: 12, marginHorizontal: 20, marginBottom: 8 },
   eyebrow: { color: Palette.textMuted, fontSize: 9, fontWeight: "800", letterSpacing: 1.3 },
   topTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", marginTop: 2 },
   previewLink: { flexDirection: "row", alignItems: "center", gap: 5, padding: 8 },
