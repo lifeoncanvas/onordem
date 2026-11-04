@@ -34,12 +34,22 @@ const NOTE_LAYOUTS = [
   { id: "postcard", label: "Postcard", icon: "mail-outline" },
   { id: "minimal", label: "Minimal", icon: "remove-outline" },
 ] as const;
+
 const LETTER_PAPERS = [
-  { id: "ivory", label: "Ivory", color: "#F6EDDD", ink: "#392C24" },
-  { id: "rose", label: "Blush", color: "#F4E4E2", ink: "#432B30" },
-  { id: "sage", label: "Sage", color: "#E6EADD", ink: "#29352D" },
+  { id: "ivory", label: "Ivory", color: "#FAF6EE", ink: "#241C15", accent: "#C89D66", placeholder: "#8F8175" },
+  { id: "rose", label: "Blush", color: "#F9EFEF", ink: "#382027", accent: "#D87D9A", placeholder: "#9C7C85" },
+  { id: "sage", label: "Sage", color: "#EFF3EB", ink: "#1E2C22", accent: "#6FA37D", placeholder: "#7B8F80" },
+  { id: "midnight", label: "Midnight", color: "#161616", ink: "#FFFFFF", accent: "#8FD3FF", placeholder: "#777777" },
 ] as const;
-const NOTE_STICKERS = ["✦", "❀", "♡", "☼"];
+
+const NOTE_STICKERS = ["✦", "❀", "♡", "☼", "☕", "🌿"];
+
+const LETTER_CLOSINGS = [
+  "With heartfelt gratitude,",
+  "With love and respect,",
+  "Forever grateful,",
+  "Always in my thoughts,",
+];
 
 function getParam(value?: string | string[]): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -86,7 +96,7 @@ export default function CreationStudioScreen({
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [mentorName, setMentorName] = useState(getParam(params.mentorName));
-  const [relationship, setRelationship] = useState(getParam(params.relationship) || "Mentor");
+  const [relationship, setRelationship] = useState(getParam(params.relationship));
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [quote, setQuote] = useState("");
@@ -109,7 +119,7 @@ export default function CreationStudioScreen({
     () => ({
       type,
       mentorName,
-      relationship,
+      relationship: relationship || "Mentor",
       title,
       body,
       quote,
@@ -121,95 +131,80 @@ export default function CreationStudioScreen({
       layoutStyle,
       decorations,
     }),
-    [
-      type,
-      mentorName,
-      relationship,
-      title,
-      body,
-      quote,
-      dateOrYear,
-      greeting,
-      closing,
-      signature,
-      photoUri,
-      layoutStyle,
-      decorations,
-    ]
+    [type, mentorName, relationship, title, body, quote, dateOrYear, greeting, closing, signature, photoUri, layoutStyle, decorations]
   );
 
-  const hydrateDraft = useCallback((draft: CreationDraft) => {
-    const saved = draft.formData;
-    if (!saved) return;
+  const loadDraft = useCallback((saved: CreationDraft) => {
     setMentorName(saved.mentorName);
-    setRelationship(saved.relationship);
-    setTitle(saved.title);
-    setBody(saved.body);
-    setQuote(saved.quote ?? "");
-    setDateOrYear(saved.dateOrYear ?? "");
-    setGreeting(saved.greeting ?? "");
-    setClosing(saved.closing ?? "With gratitude,");
-    const authorName = userProfileService.getProfile().name;
-    if (saved.signature && saved.signature !== "Sarita Baiga") {
-      setSignature(saved.signature);
+    const fd = saved.formData;
+    if (fd) {
+      setRelationship(fd.relationship || "");
+      setTitle(fd.title || "");
+      setBody(fd.body || "");
+      setQuote(fd.quote ?? "");
+      setDateOrYear(fd.dateOrYear ?? "");
+      setGreeting(fd.greeting ?? "");
+      setClosing(fd.closing ?? "With gratitude,");
+      if (fd.signature) {
+        setSignature(fd.signature);
+      }
+      setPhotoUri(fd.photoUri ?? "");
+      setLayoutStyle(fd.layoutStyle ?? (saved.type === "letter" ? "ivory" : "botanical"));
+      setDecorations(fd.decorations ?? []);
     } else {
-      setSignature(authorName && authorName !== "Sarita Baiga" ? authorName : "");
+      setTitle(saved.title || "");
+      setBody(saved.previewText || "");
     }
-    setPhotoUri(saved.photoUri ?? "");
-    setLayoutStyle(saved.layoutStyle ?? (saved.type === "letter" ? "ivory" : "botanical"));
-    setDecorations(saved.decorations ?? []);
   }, []);
 
   useEffect(() => {
-    let active = true;
-    Promise.all([
-      creationDraftService.initialize(),
-      userProfileService.initialize(),
-    ])
-      .then(() => {
-        if (!active) return;
-        const authorName = userProfileService.getProfile().name;
+    let isMounted = true;
+    const hydrateDraft = async () => {
+      try {
+        await creationDraftService.initialize();
+        if (!isMounted) return;
+        const currentProfile = userProfileService.getProfile();
+        const authorName = currentProfile.name;
         const validAuthor = authorName && authorName !== "Sarita Baiga" ? authorName : "";
         if (draftIdParam) {
           const draft = creationDraftService.getDraftById(draftIdParam);
-          if (draft?.type === type) hydrateDraft(draft);
-          else if (!signature || signature === "Sarita Baiga") setSignature(validAuthor);
+          if (draft) {
+            loadDraft(draft);
+            idRef.current = draft.id;
+            setDraftNotice("Draft loaded from keepsakes");
+          } else if (!signature || signature === "Sarita Baiga") setSignature(validAuthor);
         } else {
           if (!signature || signature === "Sarita Baiga") setSignature(validAuthor);
         }
-        setIsHydrated(true);
-      })
-      .catch((error: unknown) => {
+      } catch (error) {
         console.error("Unable to load creation draft:", error);
-        if (active) {
+        if (isMounted) {
           Alert.alert("Draft unavailable", "Your saved draft could not be loaded.");
-          setIsHydrated(true);
         }
-      });
-    return () => {
-      active = false;
+      } finally {
+        if (isMounted) setIsHydrated(true);
+      }
     };
-  }, [draftIdParam, hydrateDraft, type]);
-
-  const makeDraft = useCallback(
-    (data: CreationFormState): CreationDraft => ({
-      id: idRef.current,
-      type,
-      title: data.title || typeTitle(type),
-      mentorName: data.mentorName,
-      previewText: data.body || data.quote || "",
-      lastEdited: new Date().toLocaleString(),
-      wordCount: data.body.trim().split(/\s+/).filter(Boolean).length,
-      formData: data,
-    }),
-    [type]
-  );
+    hydrateDraft();
+    return () => {
+      isMounted = false;
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [draftIdParam, loadDraft, signature]);
 
   const persistDraft = useCallback(
     async (data: CreationFormState) => {
-      await creationDraftService.saveDraft(makeDraft(data));
+      await creationDraftService.saveDraft({
+        id: idRef.current,
+        type: data.type,
+        mentorName: data.mentorName,
+        title: data.title || (isStudioType(data.type) ? typeTitle(data.type) : "Keepsake"),
+        lastEdited: new Date().toLocaleString(),
+        previewText: data.body.slice(0, 140) || data.quote?.slice(0, 140) || "Untitled draft in studio",
+        formData: data,
+      });
     },
-    [makeDraft]
+    []
   );
 
   useEffect(() => {
@@ -219,83 +214,40 @@ export default function CreationStudioScreen({
       title.trim() ||
       body.trim() ||
       quote.trim() ||
-      dateOrYear.trim() ||
       photoUri ||
-      decorations.length > 0 ||
-      layoutStyle !== (type === "letter" ? "ivory" : "botanical");
+      dateOrYear.trim();
     if (!hasContent) return;
-    const timeout = setTimeout(() => {
-      persistDraft(formData).catch((error: unknown) => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    const timeout = setTimeout(async () => {
+      try {
+        await persistDraft(formData);
+      } catch (error) {
         console.error("Unable to autosave creation draft:", error);
-        Alert.alert("Draft not saved", "Check your device storage and try again.");
-      });
-    }, 700);
+      }
+    }, 900);
     autosaveTimer.current = timeout;
     return () => {
       clearTimeout(timeout);
       if (autosaveTimer.current === timeout) autosaveTimer.current = null;
     };
-  }, [
-    isHydrated,
-    mentorName,
-    title,
-    body,
-    quote,
-    dateOrYear,
-    photoUri,
-    decorations,
-    layoutStyle,
-    type,
-    formData,
-    persistDraft,
-  ]);
-
-  const handleBack = async () => {
-    try {
-      if (
-        isHydrated &&
-        (mentorName.trim() ||
-          title.trim() ||
-          body.trim() ||
-          quote.trim() ||
-          dateOrYear.trim() ||
-          photoUri ||
-          decorations.length > 0 ||
-          layoutStyle !== (type === "letter" ? "ivory" : "botanical"))
-      ) {
-        await persistDraft(formData);
-      }
-      router.back();
-    } catch (error) {
-      console.error("Unable to preserve creation draft:", error);
-      Alert.alert("Draft not saved", "Your writing could not be saved. Stay on this screen and try again.");
-    }
-  };
-
-  const handleSaveDraft = async () => {
-    try {
-      await persistDraft(formData);
-      setDraftNotice("Draft saved. Your writing and design choices are in your creation studio.");
-    } catch (error) {
-      console.error("Unable to save creation draft:", error);
-      setDraftNotice("Your draft could not be saved. Please try again.");
-      Alert.alert("Draft not saved", "Your draft could not be saved. Please try again.");
-    }
-  };
+  }, [formData, isHydrated, mentorName, title, body, quote, photoUri, dateOrYear, persistDraft]);
 
   const handlePickPhoto = async () => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Photo access needed", "Allow photo library access to attach a keepsake image.");
+        Alert.alert("Permission needed", "Access to your photo gallery is required to add photos.");
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.85,
+        aspect: [4, 3],
+        quality: 0.82,
       });
-      if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]?.uri) {
+        setPhotoUri(result.assets[0].uri);
+      }
     } catch (error) {
       console.error("Unable to select an attachment:", error);
       Alert.alert("Photo unavailable", "The photo could not be selected. Please try again.");
@@ -321,12 +273,14 @@ export default function CreationStudioScreen({
       const createdAt = new Date().toISOString();
       const savedId = idRef.current.replace("creation-draft-", "creation-");
       const year = dateOrYear.match(/\d{4}/)?.[0] ?? String(new Date().getFullYear());
+      const effectiveRelationship = relationship.trim() || "Mentor";
+
       if (type === "memory") {
         memoryService.addMemory({
           kind: "memory",
           id: savedId,
           mentorName: mentorName.trim(),
-          relationship,
+          relationship: effectiveRelationship,
           title: title.trim() || "A Moment Cherished",
           excerpt: body.trim(),
           story: body.trim(),
@@ -344,7 +298,7 @@ export default function CreationStudioScreen({
           kind: "letter",
           id: savedId,
           mentorName: mentorName.trim(),
-          relationship,
+          relationship: effectiveRelationship,
           title: title.trim() || `A Letter to ${mentorName.trim()}`,
           preview: body.trim().slice(0, 180),
           letterBody: body.trim(),
@@ -364,7 +318,7 @@ export default function CreationStudioScreen({
           kind: "lesson",
           id: savedId,
           mentorName: mentorName.trim(),
-          relationship,
+          relationship: effectiveRelationship,
           lessonTitle: title.trim() || "A Note for You",
           quote: quote.trim() || body.trim(),
           story: body.trim(),
@@ -382,13 +336,13 @@ export default function CreationStudioScreen({
         console.error("Unable to remove the completed creation draft:", error);
       }
 
-      // Publish to backend with dedication email dispatch and community feed sharing
+      // Sync with backend
       try {
         await api.tributes.create({
           mentorName: mentorName.trim(),
           kind: type,
           title: title.trim() || (type === "letter" ? `A Letter to ${mentorName.trim()}` : "A Moment of Gratitude"),
-          relationship: relationship || "Mentor",
+          relationship: effectiveRelationship,
           story: body.trim(),
           excerpt: body.trim().slice(0, 200),
           quote: quote.trim() || undefined,
@@ -422,10 +376,6 @@ export default function CreationStudioScreen({
       suppressAutosave.current = false;
       console.error("Unable to save creation:", error);
       Alert.alert("Could not save", "Your keepsake could not be saved. Please try again.");
-      persistDraft(formData).catch((draftError: unknown) => {
-        console.error("Unable to preserve creation after save failure:", draftError);
-        Alert.alert("Draft not saved", "Your writing could not be preserved. Please try again.");
-      });
     } finally {
       setIsSaving(false);
     }
@@ -446,23 +396,8 @@ export default function CreationStudioScreen({
   const isLetter = type === "letter";
   const isMemo = type === "memory";
   const selectedPaper = LETTER_PAPERS.find((paper) => paper.id === layoutStyle) ?? LETTER_PAPERS[0];
-  const paperColor = isLetter ? selectedPaper.color : type === "lesson" && layoutStyle === "postcard" ? "#F4E8DE" : "#F6EFDF";
-  const paperInk = isLetter ? selectedPaper.ink : "#3C342E";
-  const screenTitle = typeTitle(type);
-
-  if (!isStudioType(requestedType)) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        <View style={styles.invalidWrap}>
-          <Text style={styles.invalidText}>Choose a creation type to begin.</Text>
-          <Pressable onPress={() => router.replace("/create")} style={styles.backButton}>
-            <Text style={styles.backButtonText}>Back to Create</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const paperColor = isLetter ? selectedPaper.color : selectedPaper.color;
+  const paperInk = isLetter ? selectedPaper.ink : "#FFFFFF";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -472,30 +407,27 @@ export default function CreationStudioScreen({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.topBar}>
-          <Pressable onPress={handleBack} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Back to creation studio">
+          <Pressable onPress={() => router.back()} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </Pressable>
           <View style={styles.topTitleWrap}>
             <Text style={styles.eyebrow}>HONOUR YOUR MENTOR</Text>
-            <Text style={styles.topTitle}>{screenTitle}</Text>
+            <Text style={styles.topTitle}>{typeTitle(type)}</Text>
           </View>
-          <Pressable onPress={handleSaveDraft} style={styles.draftButton} accessibilityRole="button" accessibilityLabel="Save draft">
+          <Pressable
+            onPress={() => persistDraft(formData).then(() => setDraftNotice("Draft saved to studio"))}
+            style={styles.draftButton}
+            accessibilityRole="button"
+            accessibilityLabel="Save draft"
+          >
             <Ionicons name="bookmark-outline" size={18} color="#FFFFFF" />
           </Pressable>
-          <Pressable
-            onPress={() => setIsPreviewVisible(true)}
-            style={styles.previewLink}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Preview ${isMemo ? "memo" : isLetter ? "letter" : "note"}`}
-            accessibilityHint="Opens a preview of your current writing"
-          >
+          <Pressable onPress={() => setIsPreviewVisible(true)} style={styles.previewLink}>
             <Ionicons name="eye-outline" size={17} color={accent} />
-            <Text style={[styles.previewLinkText, { color: accent }]}>
-              {`Preview ${isMemo ? "Memo" : isLetter ? "Letter" : "Note"}`}
-            </Text>
+            <Text style={[styles.previewLinkText, { color: accent }]}>Preview</Text>
           </Pressable>
         </View>
+
         {draftNotice ? (
           <Text style={styles.draftNotice} accessibilityRole="alert">
             {draftNotice}
@@ -508,7 +440,8 @@ export default function CreationStudioScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.introBadge, { borderColor: `${accent}55` }]}>
+          {/* Studio Intro Pill */}
+          <View style={[styles.introBadge, { borderColor: `${accent}40` }]}>
             <Ionicons name={isMemo ? "book-outline" : isLetter ? "mail-open-outline" : "color-palette-outline"} size={16} color={accent} />
             <Text style={[styles.introText, { color: accent }]}>
               {isMemo ? "A page from your memory journal" : isLetter ? "A letter worth keeping" : "A little piece of personal stationery"}
@@ -516,30 +449,32 @@ export default function CreationStudioScreen({
           </View>
           {prompt ? <Text style={styles.promptText}>“{prompt}”</Text> : null}
 
-          {!isMemo && (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{isLetter ? "WRITING TO" : "MENTOR'S NAME"}</Text>
-              <TextInput
-                style={styles.darkInput}
-                placeholder="Their name"
-                placeholderTextColor={Palette.textMuted}
-                value={mentorName}
-                onChangeText={setMentorName}
-                autoCapitalize="words"
-              />
-            </View>
-          )}
+          {/* Recipient / Mentor's Name Field */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{isLetter ? "WRITING TO" : "MENTOR'S NAME"}</Text>
+            <TextInput
+              style={styles.darkInput}
+              placeholder="Their name (e.g. Dr. Mitchell, Coach Sarah)"
+              placeholderTextColor="#777777"
+              value={mentorName}
+              onChangeText={setMentorName}
+              autoCapitalize="words"
+            />
+          </View>
+
+          {/* Relationship Field - Clean, never prefilled with 'Mentor' */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>YOUR RELATIONSHIP</Text>
             <TextInput
               style={styles.darkInput}
-              placeholder="Teacher, parent, coach…"
-              placeholderTextColor={Palette.textMuted}
+              placeholder="e.g. Teacher, Parent, Coach, Guide…"
+              placeholderTextColor="#777777"
               value={relationship}
               onChangeText={setRelationship}
             />
           </View>
 
+          {/* Editor Switch */}
           {isLetter ? (
             <LetterEditor
               title={title}
@@ -566,8 +501,7 @@ export default function CreationStudioScreen({
                 );
               }}
               accent={accent}
-              paperColor={paperColor}
-              paperInk={paperInk}
+              selectedPaper={selectedPaper}
             />
           ) : isMemo ? (
             <MemoEditor
@@ -695,6 +629,9 @@ export default function CreationStudioScreen({
   );
 }
 
+/* ==========================================================================
+   1. MEMO EDITOR: Aesthetic Keepsake Memory Journal
+   ========================================================================== */
 interface MemoEditorProps {
   title: string;
   body: string;
@@ -714,54 +651,99 @@ interface MemoEditorProps {
 function MemoEditor(props: MemoEditorProps) {
   return (
     <>
-      <Text style={styles.sectionHeading}>A moment to remember</Text>
-      <View style={styles.memoPaper}>
-        <View style={styles.memoMargin} />
+      <Text style={styles.sectionHeading}>A Moment to Remember</Text>
+
+      {/* Aesthetic Keepsake Journal Card */}
+      <View style={styles.memoJournalCard}>
+        {/* Ribbon Header */}
+        <View style={styles.memoHeaderBar}>
+          <View style={styles.memoRibbonBadge}>
+            <Ionicons name="bookmark" size={13} color={Palette.accentMint} />
+            <Text style={styles.memoRibbonText}>MEMOIRE • MOMENT KEEPSAKE</Text>
+          </View>
+          <View style={styles.memoDatePill}>
+            <Ionicons name="calendar-outline" size={12} color={Palette.accentMint} />
+            <TextInput
+              style={styles.memoDateInput}
+              value={props.date}
+              onChangeText={props.onDateChange}
+              placeholder="When was this?"
+              placeholderTextColor="#777777"
+            />
+          </View>
+        </View>
+
+        {/* Memory Title */}
         <TextInput
-          style={styles.paperTitle}
+          style={styles.memoTitleInput}
           value={props.title}
           onChangeText={props.onTitleChange}
-          placeholder="Give this memory a name"
-          placeholderTextColor="#9B8C78"
+          placeholder="Give this memory a title…"
+          placeholderTextColor="#777777"
         />
+
+        {/* Sub-divider */}
+        <View style={styles.memoDivider} />
+
+        {/* Memory Story */}
         <TextInput
-          style={styles.paperMentor}
-          value={props.mentorName}
-          onChangeText={props.onMentorNameChange}
-          placeholder="For someone who helped you grow"
-          placeholderTextColor="#9B8C78"
-          autoCapitalize="words"
-        />
-        <View style={styles.paperDateRow}>
-          <Ionicons name="calendar-outline" size={13} color="#9B8061" />
-          <TextInput
-            style={styles.paperDate}
-            value={props.date}
-            onChangeText={props.onDateChange}
-            placeholder="When did it happen?"
-            placeholderTextColor="#9B8C78"
-          />
-        </View>
-        <TextInput
-          style={styles.paperBody}
+          style={styles.memoBodyInput}
           value={props.body}
           onChangeText={props.onBodyChange}
-          placeholder="Where were you? What did they say? Capture the little details you never want to forget…"
-          placeholderTextColor="#9B8C78"
+          placeholder="Where were you? What did they say or do that stayed with you? Capture the little details you never want to forget…"
+          placeholderTextColor="#777777"
           multiline
           textAlignVertical="top"
         />
-        <View style={styles.paperFooter}>
-          <Text style={styles.paperMeta}>A MEMORY, PRESERVED</Text>
-          <Ionicons name="sparkles-outline" size={15} color="#B18756" />
+
+        {/* Attached Photo Polaroid Preview inside the Journal */}
+        {props.photoUri ? (
+          <View style={styles.polaroidFrame}>
+            <Image source={{ uri: props.photoUri }} style={styles.polaroidPhoto} />
+            <View style={styles.polaroidFooter}>
+              <Text style={styles.polaroidCaption}>Preserved memory</Text>
+              <TouchableOpacity onPress={props.onRemovePhoto} style={styles.polaroidRemoveBtn}>
+                <Ionicons name="trash-outline" size={14} color="#FF6B6B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={props.onPickPhoto} activeOpacity={0.8} style={styles.memoPhotoNudge}>
+            <Ionicons name="camera-outline" size={18} color={Palette.accentMint} />
+            <Text style={styles.memoPhotoNudgeText}>Attach a photo or snapshot from that day</Text>
+            <Ionicons name="add-circle-outline" size={16} color={Palette.textSecondary} />
+          </TouchableOpacity>
+        )}
+
+        {/* Words to keep callout */}
+        <View style={styles.memoQuoteCallout}>
+          <View style={styles.memoQuoteIconWrap}>
+            <Ionicons name="chatbubble-ellipses-outline" size={14} color={Palette.accentMint} />
+            <Text style={styles.memoQuoteLabel}>WORDS TO REMEMBER</Text>
+          </View>
+          <TextInput
+            style={styles.memoQuoteInput}
+            value={props.quote}
+            onChangeText={props.onQuoteChange}
+            placeholder="“A piece of wisdom or encouragement they gave you…”"
+            placeholderTextColor="#777777"
+            multiline
+          />
+        </View>
+
+        {/* Journal Footer Seal */}
+        <View style={styles.memoFooterRow}>
+          <Text style={styles.memoFooterSeal}>✦ PRESERVED IN YOUR HEART</Text>
+          <Ionicons name="sparkles" size={13} color={Palette.accentMint} />
         </View>
       </View>
-      <QuoteField value={props.quote} onChangeText={props.onQuoteChange} label="WORDS YOU WANT TO KEEP" />
-      <PhotoAttachment uri={props.photoUri} onPick={props.onPickPhoto} onRemove={props.onRemovePhoto} />
     </>
   );
 }
 
+/* ==========================================================================
+   2. NOTE EDITOR: Artistic Stationery Note with Washi Tape
+   ========================================================================== */
 interface NoteEditorProps {
   title: string;
   body: string;
@@ -787,67 +769,100 @@ function NoteEditor(props: NoteEditorProps) {
         : [...props.decorations, decoration]
     );
   };
+
   return (
     <>
-      <Text style={styles.sectionHeading}>Choose your stationery</Text>
+      <Text style={styles.sectionHeading}>Choose Your Stationery</Text>
+
+      {/* Style selector pills */}
       <View style={styles.choiceRow}>
         {NOTE_LAYOUTS.map((layout) => (
           <Pressable
             key={layout.id}
             onPress={() => props.onLayoutChange(layout.id)}
-            style={[styles.choice, props.layoutStyle === layout.id && styles.choiceActive]}
+            style={[styles.choice, props.layoutStyle === layout.id && { borderColor: props.accent, backgroundColor: "#201826" }]}
           >
-            <Ionicons name={layout.icon} size={16} color={props.layoutStyle === layout.id ? props.accent : Palette.textSecondary} />
+            <Ionicons name={layout.icon} size={15} color={props.layoutStyle === layout.id ? props.accent : Palette.textSecondary} />
             <Text style={[styles.choiceText, props.layoutStyle === layout.id && { color: props.accent }]}>{layout.label}</Text>
           </Pressable>
         ))}
       </View>
-      <View style={[styles.notePaper, props.layoutStyle === "postcard" && styles.postcardPaper, props.layoutStyle === "minimal" && styles.minimalPaper]}>
-        <View style={styles.noteOrnament}>
-          <Text style={[styles.ornamentText, { color: props.accent }]}>{props.layoutStyle === "botanical" ? "❧  ✿  ❧" : props.layoutStyle === "postcard" ? "POST • CARD" : "✦"}</Text>
+
+      {/* Artistic Note Card with Washi Tape Header */}
+      <View style={styles.noteContainer}>
+        {/* Washi Tape Strip */}
+        <View style={[styles.washiTapeStrip, { backgroundColor: `${props.accent}55`, borderColor: props.accent }]}>
+          <Text style={[styles.washiTapeText, { color: props.accent }]}>✦  STATIONERY NOTE  ✦</Text>
         </View>
-        <TextInput
-          style={styles.noteTitle}
-          value={props.title}
-          onChangeText={props.onTitleChange}
-          placeholder="A thoughtful little note"
-          placeholderTextColor="#9B8C78"
-          textAlign="center"
-        />
-        <View style={[styles.noteDivider, { backgroundColor: props.accent }]} />
-        <TextInput
-          style={styles.noteBody}
-          value={props.body}
-          onChangeText={props.onBodyChange}
-          placeholder="Write something only you could say…"
-          placeholderTextColor="#9B8C78"
-          multiline
-          textAlignVertical="top"
-        />
-        {props.decorations.length > 0 ? <Text style={[styles.stickerPreview, { color: props.accent }]}>{props.decorations.join("  ")}</Text> : null}
+
+        <View style={styles.notePaperModern}>
+          {/* Top Flourish */}
+          <Text style={[styles.noteOrnamentModern, { color: props.accent }]}>
+            {props.layoutStyle === "botanical" ? "❧  ✿  ❧" : props.layoutStyle === "postcard" ? "POST • CARD" : "— ✦ —"}
+          </Text>
+
+          {/* Note Title */}
+          <TextInput
+            style={styles.noteTitleModern}
+            value={props.title}
+            onChangeText={props.onTitleChange}
+            placeholder="A thoughtful little note"
+            placeholderTextColor="#777777"
+            textAlign="center"
+          />
+
+          <View style={[styles.noteDividerModern, { backgroundColor: props.accent }]} />
+
+          {/* Note Body */}
+          <TextInput
+            style={styles.noteBodyModern}
+            value={props.body}
+            onChangeText={props.onBodyChange}
+            placeholder="Write something heartfelt only you could say…"
+            placeholderTextColor="#777777"
+            multiline
+            textAlignVertical="top"
+          />
+
+          {/* Pinned Stickers Display */}
+          {props.decorations.length > 0 && (
+            <View style={styles.pinnedStickersRow}>
+              {props.decorations.map((stk, i) => (
+                <Text key={i} style={[styles.pinnedStickerItem, { color: props.accent }]}>{stk}</Text>
+              ))}
+            </View>
+          )}
+        </View>
       </View>
+
+      {/* Interactive Sticker Palette */}
       <Text style={styles.fieldLabel}>ADD A LITTLE DETAIL</Text>
       <View style={styles.choiceRow}>
         {NOTE_STICKERS.map((sticker) => (
-          <Pressable key={sticker} onPress={() => addDecoration(sticker)} style={[styles.sticker, props.decorations.includes(sticker) && { backgroundColor: `${props.accent}25`, borderColor: props.accent }]}>
-            <Text style={[styles.stickerText, props.decorations.includes(sticker) && { color: props.accent }]}>{sticker}</Text>
+          <Pressable
+            key={sticker}
+            onPress={() => addDecoration(sticker)}
+            style={[
+              styles.stickerModern,
+              props.decorations.includes(sticker) && { backgroundColor: `${props.accent}25`, borderColor: props.accent },
+            ]}
+          >
+            <Text style={[styles.stickerTextModern, props.decorations.includes(sticker) && { color: props.accent }]}>
+              {sticker}
+            </Text>
           </Pressable>
         ))}
-        <Pressable
-          onPress={() => addDecoration("— ✦ —")}
-          style={[styles.dividerPreview, props.decorations.includes("— ✦ —") && { borderColor: props.accent }]}
-          accessibilityRole="button"
-          accessibilityLabel="Add or remove decorative divider"
-        >
-          <View style={[styles.noteDivider, { backgroundColor: props.accent }]} />
-        </Pressable>
       </View>
+
       <QuoteField value={props.quote} onChangeText={props.onQuoteChange} label="A QUOTE OR SIGN-OFF (OPTIONAL)" />
       <PhotoAttachment uri={props.photoUri} onPick={props.onPickPhoto} onRemove={props.onRemovePhoto} />
     </>
   );
 }
 
+/* ==========================================================================
+   3. LETTER EDITOR: Romantic & Aesthetic Handwritten Letter
+   ========================================================================== */
 interface LetterEditorProps {
   title: string;
   body: string;
@@ -867,100 +882,153 @@ interface LetterEditorProps {
   hasEnvelope: boolean;
   onEnvelopeChange: (enabled: boolean) => void;
   accent: string;
-  paperColor: string;
-  paperInk: string;
+  selectedPaper: typeof LETTER_PAPERS[number];
 }
 
 function LetterEditor(props: LetterEditorProps) {
+  const paper = props.selectedPaper;
+
   return (
     <>
-      <Text style={styles.sectionHeading}>Set the tone of your letter</Text>
+      <Text style={styles.sectionHeading}>Set the Tone of Your Letter</Text>
+
+      {/* Stationery Paper Tone Selector */}
       <View style={styles.choiceRow}>
-        {LETTER_PAPERS.map((paper) => (
-          <Pressable key={paper.id} onPress={() => props.onPaperChange(paper.id)} style={[styles.paperChoice, { backgroundColor: paper.color }, props.paperStyle === paper.id && styles.paperChoiceActive]}>
-            <Text style={[styles.paperChoiceText, { color: paper.ink }]}>{paper.label}</Text>
+        {LETTER_PAPERS.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => props.onPaperChange(item.id)}
+            style={[
+              styles.paperToneChoice,
+              { backgroundColor: item.color },
+              props.paperStyle === item.id && { borderColor: props.accent, borderWidth: 2 },
+            ]}
+          >
+            <Text style={[styles.paperToneText, { color: item.ink }]}>{item.label}</Text>
           </Pressable>
         ))}
       </View>
+
+      {/* Keepsake Envelope / Wax Seal Toggle */}
       <Pressable
         onPress={() => props.onEnvelopeChange(!props.hasEnvelope)}
-        style={[styles.envelopeToggle, props.hasEnvelope && styles.envelopeToggleActive]}
+        style={[styles.waxSealPill, props.hasEnvelope && { borderColor: props.accent, backgroundColor: "#22171E" }]}
         accessibilityRole="button"
-        accessibilityState={{ selected: props.hasEnvelope }}
       >
         <Ionicons
           name={props.hasEnvelope ? "mail" : "mail-outline"}
-          size={17}
+          size={16}
           color={props.hasEnvelope ? props.accent : Palette.textSecondary}
         />
-        <Text style={[styles.envelopeToggleText, props.hasEnvelope && { color: props.accent }]}>
-          {props.hasEnvelope ? "Envelope added" : "Add a keepsake envelope"}
+        <Text style={[styles.waxSealPillText, props.hasEnvelope && { color: props.accent }]}>
+          {props.hasEnvelope ? "Keepsake Envelope Attached" : "Add a Keepsake Envelope & Wax Seal"}
         </Text>
         <Ionicons
           name={props.hasEnvelope ? "checkmark-circle" : "add-circle-outline"}
-          size={17}
+          size={16}
           color={props.hasEnvelope ? props.accent : Palette.textSecondary}
         />
       </Pressable>
-      <View style={[styles.letterPaper, { backgroundColor: props.paperColor, borderColor: `${props.accent}55` }]}>
-        <View style={[styles.letterTopRule, { backgroundColor: props.accent }]} />
-        <Text style={[styles.letterOrnament, { color: props.accent }]}>❦</Text>
+
+      {/* Aesthetic Letter Paper */}
+      <View style={[styles.letterPaperContainer, { backgroundColor: paper.color, borderColor: `${paper.accent}55` }]}>
+        {/* Wax Seal / Stamp Ornament */}
+        <View style={styles.letterFlourishRow}>
+          <Text style={[styles.letterFlourish, { color: paper.accent }]}>❦</Text>
+        </View>
+
+        {/* Salutation */}
         <TextInput
-          style={[styles.letterGreeting, { color: props.paperInk }]}
+          style={[styles.letterGreetingText, { color: paper.ink }]}
           value={props.greeting}
           onChangeText={props.onGreetingChange}
-          placeholder={`Dear ${props.mentorName || "someone special"}…`}
-          placeholderTextColor="#9B8C78"
+          placeholder={`Dear ${props.mentorName.trim() || "someone special"},`}
+          placeholderTextColor={paper.placeholder}
         />
+
+        {/* Subject Line */}
         <TextInput
-          style={[styles.letterSubject, { color: props.paperInk }]}
+          style={[styles.letterSubjectText, { color: paper.ink, borderBottomColor: `${paper.accent}35` }]}
           value={props.title}
           onChangeText={props.onTitleChange}
-          placeholder="A few words from my heart"
-          placeholderTextColor="#9B8C78"
+          placeholder="A few words from my heart…"
+          placeholderTextColor={paper.placeholder}
         />
+
+        {/* Letter Body */}
         <TextInput
-          style={[styles.letterBody, { color: props.paperInk }]}
+          style={[styles.letterBodyText, { color: paper.ink }]}
           value={props.body}
           onChangeText={props.onBodyChange}
-          placeholder="I have wanted to tell you…"
-          placeholderTextColor="#9B8C78"
+          placeholder="I have wanted to tell you for a long time how much your presence and guidance shaped my journey…"
+          placeholderTextColor={paper.placeholder}
           multiline
           textAlignVertical="top"
         />
+
+        {/* Quick Sign-off Chips */}
+        <Text style={[styles.closingPillLabel, { color: paper.accent }]}>SIGN-OFF</Text>
+        <View style={styles.closingChipsRow}>
+          {LETTER_CLOSINGS.map((cl) => (
+            <TouchableOpacity
+              key={cl}
+              onPress={() => props.onClosingChange(cl)}
+              style={[
+                styles.closingChip,
+                { borderColor: `${paper.accent}45` },
+                props.closing === cl && { backgroundColor: `${paper.accent}30`, borderColor: paper.accent },
+              ]}
+            >
+              <Text style={[styles.closingChipText, { color: paper.ink }]}>{cl}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Signature Line */}
+        <View style={[styles.letterSignatureRow, { borderBottomColor: `${paper.accent}35` }]}>
+          <Text style={[styles.signatureLabel, { color: paper.placeholder }]}>With gratitude,</Text>
+          <TextInput
+            style={[styles.letterSignatureInput, { color: paper.ink }]}
+            value={props.signature}
+            onChangeText={props.onSignatureChange}
+            placeholder="Your name or signature"
+            placeholderTextColor={paper.placeholder}
+          />
+        </View>
+
+        {/* Date Stamp */}
         <TextInput
-          style={[styles.letterClosing, { color: props.paperInk }]}
-          value={props.closing}
-          onChangeText={props.onClosingChange}
-          placeholder="With gratitude,"
-          placeholderTextColor="#9B8C78"
-        />
-        <TextInput
-          style={[styles.letterSignature, { color: props.paperInk }]}
-          value={props.signature}
-          onChangeText={props.onSignatureChange}
-          placeholder="Your name"
-          placeholderTextColor="#9B8C78"
-        />
-        <TextInput
-          style={[styles.letterDate, { color: props.paperInk }]}
+          style={[styles.letterDateStamp, { color: paper.placeholder }]}
           value={props.date}
           onChangeText={props.onDateChange}
-          placeholder="Date (optional)"
-          placeholderTextColor="#9B8C78"
+          placeholder="Date (e.g. October 2026)"
+          placeholderTextColor={paper.placeholder}
         />
       </View>
-      {props.hasEnvelope ? (
-        <View style={styles.envelopePreview}>
-          <Ionicons name="mail-open-outline" size={18} color={props.accent} />
-          <Text style={styles.envelopePreviewText}>SEALED WITH GRATITUDE</Text>
-          <Text style={styles.envelopeRecipient}>{props.greeting.replace(/^Dear\s*/i, "").replace(/[,!]+$/, "") || "To someone special"}</Text>
+
+      {/* Keepsake Envelope Preview */}
+      {props.hasEnvelope && (
+        <View style={[styles.envelopeAirmailCard, { borderColor: `${props.accent}55` }]}>
+          <View style={styles.airmailHeader}>
+            <Ionicons name="mail" size={16} color={props.accent} />
+            <Text style={[styles.airmailTitle, { color: props.accent }]}>SEALED WITH GRATITUDE</Text>
+          </View>
+          <Text style={styles.airmailRecipient}>
+            For {props.mentorName.trim() || "Someone Special"}
+          </Text>
+          <View style={[styles.airmailStamp, { borderColor: props.accent }]}>
+            <Ionicons name="heart" size={14} color={props.accent} />
+            <Text style={[styles.airmailStampText, { color: props.accent }]}>POST</Text>
+          </View>
         </View>
-      ) : null}
+      )}
     </>
   );
 }
 
+/* ==========================================================================
+   HELPER COMPONENTS
+   ========================================================================== */
 function QuoteField({ value, onChangeText, label }: { value: string; onChangeText: (value: string) => void; label: string }) {
   return (
     <View style={styles.fieldGroup}>
@@ -970,7 +1038,7 @@ function QuoteField({ value, onChangeText, label }: { value: string; onChangeTex
         value={value}
         onChangeText={onChangeText}
         placeholder="“The words that stayed with me…”"
-        placeholderTextColor={Palette.textMuted}
+        placeholderTextColor="#777777"
         multiline
       />
     </View>
@@ -991,7 +1059,7 @@ function PhotoAttachment({ uri, onPick, onRemove }: { uri: string; onPick: () =>
       ) : (
         <Pressable onPress={onPick} style={styles.photoButton}>
           <Ionicons name="image-outline" size={19} color={Palette.accentSky} />
-          <Text style={styles.photoButtonText}>Attach a photograph</Text>
+          <Text style={styles.photoButtonText}>Attach a photograph or snapshot</Text>
           <Ionicons name="add-circle-outline" size={18} color={Palette.textSecondary} />
         </Pressable>
       )}
@@ -1019,13 +1087,16 @@ interface PreviewModalProps {
 function PreviewModal(props: PreviewModalProps) {
   const isLetter = props.type === "letter";
   const isMemo = props.type === "memory";
-  const paper = isLetter ? LETTER_PAPERS.find((item) => item.id === props.layoutStyle) ?? LETTER_PAPERS[0] : LETTER_PAPERS[0];
+  const paper = isLetter
+    ? LETTER_PAPERS.find((item) => item.id === props.layoutStyle) ?? LETTER_PAPERS[0]
+    : LETTER_PAPERS[0];
+
   return (
     <Modal visible={props.visible} transparent animationType="fade" onRequestClose={props.onClose}>
       <View style={styles.previewBackdrop}>
         <SafeAreaView style={styles.previewSafe}>
           <View style={styles.previewHeader}>
-            <Text style={styles.previewHeading}>A little preview</Text>
+            <Text style={styles.previewHeading}>Studio Preview</Text>
             <Pressable onPress={props.onClose} style={styles.iconButton}>
               <Ionicons name="close" size={20} color="#FFFFFF" />
             </Pressable>
@@ -1033,44 +1104,45 @@ function PreviewModal(props: PreviewModalProps) {
           <ScrollView contentContainerStyle={styles.previewContent}>
             <View style={[
               styles.previewPaper,
-              props.type === "lesson" && props.layoutStyle === "postcard" && styles.postcardPaper,
-              props.type === "lesson" && props.layoutStyle === "minimal" && styles.minimalPaper,
-              { backgroundColor: props.type === "lesson" && props.layoutStyle === "postcard" ? "#F4E8DE" : paper.color },
+              { backgroundColor: isLetter ? paper.color : "#161616", borderColor: isLetter ? `${paper.accent}55` : "rgba(255, 255, 255, 0.12)" },
             ]}>
               {isLetter ? (
                 <>
-                  <Text style={styles.previewLetterOrnament}>❦</Text>
-                  <Text style={styles.previewLetterGreeting}>{props.greeting || `Dear ${props.mentorName},`}</Text>
-                  {props.title ? <Text style={styles.previewLetterTitle}>{props.title}</Text> : null}
-                  <Text style={styles.previewLetterBody}>{props.body || "Your words will appear here…"}</Text>
-                  <Text style={styles.previewLetterClosing}>{props.closing}</Text>
-                  <Text style={styles.previewSignature}>{props.signature}</Text>
-                  {props.date ? <Text style={styles.previewDate}>{props.date}</Text> : null}
-                  {props.decorations.includes("envelope") ? (
-                    <View style={styles.previewEnvelope}>
-                      <Ionicons name="mail-open-outline" size={17} color="#A66D55" />
-                      <Text style={styles.previewEnvelopeText}>SEALED WITH GRATITUDE</Text>
-                      <Text style={styles.previewEnvelopeRecipient}>For {props.mentorName || "someone special"}</Text>
-                    </View>
-                  ) : null}
+                  <Text style={[styles.previewLetterOrnament, { color: paper.accent }]}>❦</Text>
+                  <Text style={[styles.previewLetterGreeting, { color: paper.ink }]}>
+                    {props.greeting || `Dear ${props.mentorName || "someone special"},`}
+                  </Text>
+                  {props.title ? <Text style={[styles.previewLetterTitle, { color: paper.ink }]}>{props.title}</Text> : null}
+                  <Text style={[styles.previewLetterBody, { color: paper.ink }]}>{props.body || "Your words will appear here…"}</Text>
+                  <Text style={[styles.previewLetterClosing, { color: paper.ink }]}>{props.closing}</Text>
+                  <Text style={[styles.previewSignature, { color: paper.ink }]}>{props.signature}</Text>
+                  {props.date ? <Text style={[styles.previewDate, { color: paper.placeholder }]}>{props.date}</Text> : null}
                 </>
               ) : (
                 <>
-                  <Text style={styles.previewKicker}>{isMemo ? "A MOMENT TO KEEP" : "A NOTE FOR SOMEONE SPECIAL"}</Text>
-                  <Text style={styles.previewPaperTitle}>{props.title || (isMemo ? "A Moment Cherished" : "A Thought for You")}</Text>
-                  {!isMemo ? <Text style={styles.previewDivider}>✦  ─────  ✦</Text> : null}
-                  <Text style={styles.previewPaperBody}>{props.body || "Your writing will appear here…"}</Text>
+                  <Text style={[styles.previewKicker, { color: Palette.accentMint }]}>
+                    {isMemo ? "MOMENT KEEPSAKE JOURNAL" : "ARTISTIC STATIONERY NOTE"}
+                  </Text>
+                  <Text style={[styles.previewPaperTitle, { color: "#FFFFFF" }]}>
+                    {props.title || (isMemo ? "A Moment Cherished" : "A Thought for You")}
+                  </Text>
+                  <Text style={[styles.previewPaperBody, { color: "#DDDDDD" }]}>
+                    {props.body || "Your writing will appear here…"}
+                  </Text>
                   {props.photoUri ? <Image source={{ uri: props.photoUri }} style={styles.previewPhoto} /> : null}
-                  {props.quote ? <Text style={styles.previewQuote}>“{props.quote}”</Text> : null}
-                  {props.decorations.length > 0 ? <Text style={styles.previewDecoration}>{props.decorations.join("  ")}</Text> : null}
-                  <Text style={styles.previewMentor}>For {props.mentorName || "someone who matters"}</Text>
-                  {props.date ? <Text style={styles.previewDate}>{props.date}</Text> : null}
+                  {props.quote ? (
+                    <Text style={[styles.previewQuote, { color: Palette.accentMint }]}>“{props.quote}”</Text>
+                  ) : null}
+                  <Text style={[styles.previewMentor, { color: Palette.textSecondary }]}>
+                    For {props.mentorName || "someone who matters"}
+                  </Text>
+                  {props.date ? <Text style={[styles.previewDate, { color: Palette.textMuted }]}>{props.date}</Text> : null}
                 </>
               )}
             </View>
           </ScrollView>
           <Pressable onPress={props.onClose} style={styles.previewDone}>
-            <Text style={styles.previewDoneText}>Back to editing</Text>
+            <Text style={styles.previewDoneText}>Back to Editing</Text>
           </Pressable>
         </SafeAreaView>
       </View>
@@ -1078,6 +1150,9 @@ function PreviewModal(props: PreviewModalProps) {
   );
 }
 
+/* ==========================================================================
+   STYLES
+   ========================================================================== */
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#000000" },
   flex: { flex: 1 },
@@ -1087,7 +1162,7 @@ const styles = StyleSheet.create({
   draftButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: "#171717" },
   draftNotice: { color: Palette.accentMint, fontSize: 12, marginHorizontal: 20, marginBottom: 8 },
   eyebrow: { color: Palette.textMuted, fontSize: 9, fontWeight: "800", letterSpacing: 1.3 },
-  topTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", marginTop: 2 },
+  topTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", marginTop: 2, fontFamily: AppFonts.displaySans },
   previewLink: { flexDirection: "row", alignItems: "center", gap: 5, padding: 8 },
   previewLinkText: { fontSize: 12, fontWeight: "700" },
   content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
@@ -1096,56 +1171,422 @@ const styles = StyleSheet.create({
   promptText: { color: Palette.textSecondary, fontSize: 13, lineHeight: 19, fontStyle: "italic", marginBottom: 14 },
   fieldGroup: { marginBottom: 16 },
   fieldLabel: { color: Palette.textSecondary, fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 8 },
-  darkInput: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: "#303030", backgroundColor: "#171717", paddingHorizontal: 14, paddingVertical: 12, color: "#FFFFFF", fontSize: 14 },
-  sectionHeading: { color: "#FFFFFF", fontSize: 15, fontWeight: "800", marginTop: 6, marginBottom: 10 },
-  memoPaper: { backgroundColor: "#F6EFDF", borderRadius: 5, minHeight: 230, paddingHorizontal: 23, paddingTop: 20, paddingBottom: 14, marginBottom: 18, overflow: "hidden", borderWidth: 1, borderColor: "#D6C7AB", position: "relative", shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, elevation: 4 },
-  memoMargin: { position: "absolute", left: 42, top: 0, bottom: 0, width: 1, backgroundColor: "#D8A5A1" },
-  paperTitle: { color: "#3C342E", fontFamily: AppFonts.body, fontSize: 20, fontWeight: "700", paddingLeft: 34, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#DDCFB8" },
-  paperMentor: { color: "#6E5B49", fontFamily: AppFonts.body, fontSize: 12, paddingLeft: 34, paddingTop: 8 },
-  paperDateRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 34, marginTop: 4, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#E7DCC8" },
-  paperDate: { flex: 1, color: "#806E5C", fontFamily: AppFonts.body, fontSize: 11, paddingVertical: 5 },
-  paperBody: { color: "#51483E", fontFamily: AppFonts.body, fontSize: 15, lineHeight: 26, minHeight: 142, paddingLeft: 34, paddingTop: 11, textAlignVertical: "top" },
-  paperFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginLeft: 34, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#DDCFB8" },
-  paperMeta: { color: "#9B8061", fontSize: 8, fontWeight: "800", letterSpacing: 1.1 },
-  quoteInput: { minHeight: 72, fontStyle: "italic" },
-  choiceRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 14 },
-  choice: { flex: 1, minHeight: 43, backgroundColor: "#171717", borderRadius: 13, borderWidth: 1, borderColor: "#303030", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  choiceActive: { borderColor: Palette.accentLavender, backgroundColor: "#202020" },
+  darkInput: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: "#303030", backgroundColor: "#171717", paddingHorizontal: 14, paddingVertical: 12, color: "#FFFFFF", fontSize: 14, fontFamily: AppFonts.body },
+  sectionHeading: { color: "#FFFFFF", fontSize: 15, fontWeight: "800", marginTop: 6, marginBottom: 10, fontFamily: AppFonts.displaySans },
+
+  /* Memo Journal Styles */
+  memoJournalCard: {
+    backgroundColor: "#161616",
+    borderRadius: 22,
+    borderWidth: 1.2,
+    borderColor: "rgba(143, 240, 198, 0.28)",
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  memoHeaderBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  memoRibbonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "rgba(143, 240, 198, 0.12)",
+  },
+  memoRibbonText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: Palette.accentMint,
+    letterSpacing: 0.8,
+  },
+  memoDatePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#202020",
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    height: 30,
+  },
+  memoDateInput: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    paddingVertical: 2,
+    minWidth: 90,
+  },
+  memoTitleInput: {
+    color: "#FFFFFF",
+    fontSize: 19,
+    fontWeight: "700",
+    fontFamily: AppFonts.displaySans,
+    paddingVertical: 6,
+  },
+  memoDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    marginVertical: 10,
+  },
+  memoBodyInput: {
+    color: "#FFFFFF",
+    fontSize: 14.5,
+    lineHeight: 23,
+    fontFamily: AppFonts.body,
+    minHeight: 120,
+    paddingVertical: 4,
+  },
+  polaroidFrame: {
+    backgroundColor: "#FFFFFF",
+    padding: 8,
+    paddingBottom: 10,
+    borderRadius: 10,
+    marginVertical: 14,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  polaroidPhoto: {
+    width: "100%",
+    height: 160,
+    borderRadius: 6,
+  },
+  polaroidFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 6,
+    paddingHorizontal: 4,
+  },
+  polaroidCaption: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#444444",
+    fontStyle: "italic",
+  },
+  polaroidRemoveBtn: {
+    padding: 4,
+  },
+  memoPhotoNudge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(143, 240, 198, 0.35)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginVertical: 12,
+    backgroundColor: "rgba(143, 240, 198, 0.05)",
+  },
+  memoPhotoNudgeText: {
+    flex: 1,
+    color: Palette.accentMint,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  memoQuoteCallout: {
+    backgroundColor: "rgba(143, 240, 198, 0.08)",
+    borderLeftWidth: 3,
+    borderLeftColor: Palette.accentMint,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  memoQuoteIconWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 4,
+  },
+  memoQuoteLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: Palette.accentMint,
+    letterSpacing: 0.8,
+  },
+  memoQuoteInput: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontStyle: "italic",
+    paddingVertical: 2,
+    lineHeight: 18,
+  },
+  memoFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+  },
+  memoFooterSeal: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: Palette.textMuted,
+    letterSpacing: 1,
+  },
+
+  /* Note Stationery Styles */
+  noteContainer: {
+    marginBottom: 18,
+    position: "relative",
+  },
+  washiTapeStrip: {
+    position: "absolute",
+    top: -10,
+    alignSelf: "center",
+    zIndex: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  washiTapeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  notePaperModern: {
+    backgroundColor: "#161616",
+    borderRadius: 18,
+    borderWidth: 1.2,
+    borderColor: "rgba(216, 180, 254, 0.28)",
+    padding: 20,
+    paddingTop: 24,
+    minHeight: 220,
+    alignItems: "center",
+  },
+  noteOrnamentModern: {
+    fontSize: 14,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  noteTitleModern: {
+    width: "100%",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.displaySans,
+    fontSize: 19,
+    fontWeight: "700",
+    paddingVertical: 4,
+    textAlign: "center",
+  },
+  noteDividerModern: {
+    width: 60,
+    height: 1.5,
+    marginVertical: 10,
+    borderRadius: 1,
+  },
+  noteBodyModern: {
+    width: "100%",
+    color: "#FFFFFF",
+    fontFamily: AppFonts.body,
+    fontSize: 14.5,
+    lineHeight: 23,
+    minHeight: 110,
+    textAlign: "left",
+  },
+  pinnedStickersRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignSelf: "flex-end",
+    marginTop: 10,
+  },
+  pinnedStickerItem: {
+    fontSize: 17,
+  },
+  stickerModern: {
+    width: 44,
+    height: 44,
+    backgroundColor: "#171717",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#303030",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stickerTextModern: {
+    color: Palette.textSecondary,
+    fontSize: 18,
+  },
+
+  /* Letter Styles */
+  paperToneChoice: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  paperToneText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  waxSealPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#171717",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#303030",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 14,
+  },
+  waxSealPillText: {
+    flex: 1,
+    color: Palette.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  letterPaperContainer: {
+    borderRadius: 16,
+    padding: 22,
+    borderWidth: 1.5,
+    marginBottom: 18,
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  letterFlourishRow: {
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  letterFlourish: {
+    fontSize: 22,
+  },
+  letterGreetingText: {
+    fontSize: 19,
+    fontWeight: "700",
+    fontFamily: AppFonts.displaySans,
+    marginBottom: 8,
+  },
+  letterSubjectText: {
+    fontSize: 16,
+    fontWeight: "600",
+    fontFamily: AppFonts.displaySans,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    marginBottom: 12,
+  },
+  letterBodyText: {
+    fontSize: 14.5,
+    lineHeight: 24,
+    fontFamily: AppFonts.body,
+    minHeight: 150,
+  },
+  closingPillLabel: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  closingChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 10,
+  },
+  closingChip: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  closingChipText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+  letterSignatureRow: {
+    borderBottomWidth: 1,
+    paddingBottom: 4,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  signatureLabel: {
+    fontSize: 11,
+    fontStyle: "italic",
+    marginBottom: 2,
+  },
+  letterSignatureInput: {
+    fontSize: 17,
+    fontWeight: "700",
+    fontFamily: AppFonts.displaySans,
+    paddingVertical: 2,
+  },
+  letterDateStamp: {
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 6,
+  },
+  envelopeAirmailCard: {
+    backgroundColor: "#161616",
+    borderRadius: 16,
+    borderWidth: 1.2,
+    padding: 16,
+    marginBottom: 18,
+    position: "relative",
+  },
+  airmailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  airmailTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  airmailRecipient: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: AppFonts.displaySans,
+  },
+  airmailStamp: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  airmailStampText: {
+    fontSize: 8,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+
+  /* Common Shared Helpers */
+  quoteInput: { minHeight: 70, fontStyle: "italic" },
+  choiceRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
+  choice: { flex: 1, minHeight: 42, backgroundColor: "#171717", borderRadius: 13, borderWidth: 1, borderColor: "#303030", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   choiceText: { color: Palette.textSecondary, fontSize: 11, fontWeight: "700" },
-  notePaper: { backgroundColor: "#F6EFDF", borderRadius: 8, minHeight: 250, padding: 22, marginBottom: 18, borderWidth: 1, borderColor: "#D6C7AB", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.28, shadowRadius: 12, elevation: 4 },
-  postcardPaper: { borderRadius: 3, borderStyle: "dashed", borderWidth: 1.5 },
-  minimalPaper: { borderRadius: 2, borderWidth: 0, borderBottomWidth: 3, borderBottomColor: "#D4C7B4" },
-  noteOrnament: { marginBottom: 5 },
-  ornamentText: { fontSize: 16, letterSpacing: 2 },
-  noteTitle: { width: "100%", color: "#3C342E", fontFamily: AppFonts.body, fontSize: 21, fontWeight: "700", paddingVertical: 8 },
-  noteDivider: { width: 60, height: 1, marginVertical: 8, opacity: 0.72 },
-  noteBody: { width: "100%", color: "#51483E", fontFamily: AppFonts.body, fontSize: 15, lineHeight: 24, minHeight: 125, textAlign: "left", paddingTop: 8 },
-  stickerPreview: { alignSelf: "flex-end", fontSize: 17, marginTop: 8 },
-  sticker: { width: 42, height: 42, backgroundColor: "#171717", borderRadius: 13, borderWidth: 1, borderColor: "#303030", alignItems: "center", justifyContent: "center" },
-  stickerText: { color: Palette.textSecondary, fontSize: 20 },
-  dividerPreview: { flex: 1, height: 42, backgroundColor: "#171717", borderRadius: 13, borderWidth: 1, borderColor: "#303030", alignItems: "center", justifyContent: "center" },
-  paperChoice: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent" },
-  paperChoiceActive: { borderColor: Palette.accentPink, borderWidth: 2 },
-  paperChoiceText: { fontSize: 12, fontWeight: "700" },
-  letterPaper: { padding: 22, paddingTop: 25, borderWidth: 1, borderRadius: 3, minHeight: 460, marginBottom: 18, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, elevation: 4, overflow: "hidden" },
-  envelopeToggle: { flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#171717", borderRadius: 13, borderWidth: 1, borderColor: "#303030", paddingHorizontal: 13, paddingVertical: 11, marginBottom: 14 },
-  envelopeToggleActive: { borderColor: Palette.accentPink, backgroundColor: "#20191D" },
-  envelopeToggleText: { flex: 1, color: Palette.textSecondary, fontSize: 12, fontWeight: "700" },
-  envelopePreview: { minHeight: 90, borderRadius: 4, borderWidth: 1, borderColor: "#D6C7AB", backgroundColor: "#F6EFDF", alignItems: "center", justifyContent: "center", gap: 5, marginTop: -4, marginBottom: 18 },
-  envelopePreviewText: { color: "#9B8061", fontSize: 8, fontWeight: "800", letterSpacing: 1.2 },
-  envelopeRecipient: { color: "#40342A", fontFamily: AppFonts.handwritten, fontSize: 21 },
-  letterTopRule: { height: 2, width: 42, marginBottom: 12, opacity: 0.8 },
-  letterOrnament: { fontFamily: AppFonts.handwritten, fontSize: 27, textAlign: "center", marginBottom: 8 },
-  letterGreeting: { fontFamily: AppFonts.handwritten, fontSize: 28, marginBottom: 12, minHeight: 40 },
-  letterSubject: { color: "#40342A", fontFamily: AppFonts.handwritten, fontSize: 24, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(70,50,35,0.12)", marginBottom: 10 },
-  letterBody: { fontFamily: AppFonts.handwritten, fontSize: 22, lineHeight: 31, minHeight: 230, textAlignVertical: "top", paddingTop: 4 },
-  letterClosing: { fontFamily: AppFonts.handwritten, fontSize: 23, marginTop: 12, minHeight: 32 },
-  letterSignature: { fontFamily: AppFonts.handwritten, fontSize: 32, minHeight: 44, marginTop: 3 },
-  letterDate: { fontSize: 11, textAlign: "right", marginTop: 10, minHeight: 20, opacity: 0.7 },
   photoCard: { height: 170, borderRadius: 14, overflow: "hidden", position: "relative", backgroundColor: "#171717" },
   attachmentImage: { width: "100%", height: "100%" },
   removePhoto: { position: "absolute", right: 9, top: 9, width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center" },
-  photoButton: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, backgroundColor: "#171717", borderRadius: 14, borderWidth: 1, borderColor: "#303030" },
+  photoButton: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, backgroundColor: "#171717", borderRadius: 14, borderWidth: 1, borderColor: "#303030" },
   photoButtonText: { flex: 1, color: "#FFFFFF", fontSize: 13, fontWeight: "700", marginLeft: 10 },
   dedicationCard: { backgroundColor: "#151515", borderRadius: 16, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: "#272727" },
   dedicationHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
@@ -1160,34 +1601,27 @@ const styles = StyleSheet.create({
   shareText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   saveButton: { flex: 1, height: 50, paddingHorizontal: 18, backgroundColor: "#FFFFFF", borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   saveText: { color: "#111111", fontSize: 14, fontWeight: "800" },
-  invalidWrap: { flex: 1, justifyContent: "center", alignItems: "center", padding: 30 },
-  invalidText: { color: "#FFFFFF", fontSize: 16, marginBottom: 16 },
-  backButton: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: "#FFFFFF" },
-  backButtonText: { color: "#111111", fontWeight: "800" },
+
+  /* Preview Modal */
   previewBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.94)" },
   previewSafe: { flex: 1 },
   previewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  previewHeading: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
+  previewHeading: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", fontFamily: AppFonts.displaySans },
   previewContent: { flexGrow: 1, justifyContent: "center", padding: 20 },
-  previewPaper: { padding: 25, borderRadius: 4, minHeight: 340, borderWidth: 1, borderColor: "#D6C7AB" },
-  previewLetterOrnament: { color: "#A66D55", fontFamily: AppFonts.handwritten, fontSize: 30, textAlign: "center", marginBottom: 8 },
-  previewLetterGreeting: { color: "#392C24", fontFamily: AppFonts.handwritten, fontSize: 29, marginBottom: 10 },
-  previewLetterTitle: { color: "#392C24", fontFamily: AppFonts.handwritten, fontSize: 24, marginBottom: 8 },
-  previewLetterBody: { color: "#392C24", fontFamily: AppFonts.handwritten, fontSize: 22, lineHeight: 32, marginBottom: 18 },
-  previewLetterClosing: { color: "#392C24", fontFamily: AppFonts.handwritten, fontSize: 23 },
-  previewSignature: { color: "#392C24", fontFamily: AppFonts.handwritten, fontSize: 32, marginTop: 4 },
-  previewKicker: { color: "#9B8061", textAlign: "center", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 },
-  previewPaperTitle: { color: "#3C342E", textAlign: "center", fontFamily: AppFonts.body, fontSize: 22, fontWeight: "700", marginTop: 12, marginBottom: 8 },
-  previewDivider: { color: "#B18756", textAlign: "center", marginVertical: 10 },
-  previewPaperBody: { color: "#51483E", fontFamily: AppFonts.body, fontSize: 15, lineHeight: 24, marginTop: 12 },
-  previewPhoto: { width: "100%", height: 150, borderRadius: 5, marginTop: 14 },
-  previewQuote: { color: "#6C5944", fontFamily: AppFonts.body, fontStyle: "italic", fontSize: 15, textAlign: "center", marginTop: 14 },
-  previewDecoration: { color: Palette.accentLavender, textAlign: "right", fontSize: 18, marginTop: 12 },
-  previewMentor: { color: "#8C755C", textAlign: "center", fontSize: 11, fontWeight: "700", marginTop: 18 },
-  previewDate: { color: "#8C755C", textAlign: "right", fontSize: 10, marginTop: 10 },
-  previewEnvelope: { alignItems: "center", justifyContent: "center", gap: 5, minHeight: 76, marginTop: 18, borderWidth: 1, borderColor: "#D6C7AB", backgroundColor: "#F6EFDF" },
-  previewEnvelopeText: { color: "#9B8061", fontSize: 8, fontWeight: "800", letterSpacing: 1.2 },
-  previewEnvelopeRecipient: { color: "#40342A", fontFamily: AppFonts.body, fontStyle: "italic", fontSize: 13 },
+  previewPaper: { padding: 22, borderRadius: 16, minHeight: 320, borderWidth: 1 },
+  previewLetterOrnament: { fontSize: 24, textAlign: "center", marginBottom: 6 },
+  previewLetterGreeting: { fontSize: 20, fontWeight: "700", fontFamily: AppFonts.displaySans, marginBottom: 8 },
+  previewLetterTitle: { fontSize: 16, fontWeight: "600", fontFamily: AppFonts.displaySans, marginBottom: 8 },
+  previewLetterBody: { fontSize: 14, lineHeight: 22, fontFamily: AppFonts.body, marginBottom: 14 },
+  previewLetterClosing: { fontSize: 14, fontWeight: "600" },
+  previewSignature: { fontSize: 18, fontWeight: "700", fontFamily: AppFonts.displaySans, marginTop: 4 },
+  previewKicker: { textAlign: "center", fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
+  previewPaperTitle: { textAlign: "center", fontFamily: AppFonts.displaySans, fontSize: 20, fontWeight: "700", marginBottom: 8 },
+  previewPaperBody: { fontFamily: AppFonts.body, fontSize: 14, lineHeight: 22, marginTop: 8 },
+  previewPhoto: { width: "100%", height: 150, borderRadius: 10, marginTop: 12 },
+  previewQuote: { fontFamily: AppFonts.body, fontStyle: "italic", fontSize: 14, textAlign: "center", marginTop: 12 },
+  previewMentor: { textAlign: "center", fontSize: 12, fontWeight: "700", marginTop: 14 },
+  previewDate: { textAlign: "right", fontSize: 10, marginTop: 8 },
   previewDone: { backgroundColor: "#FFFFFF", borderRadius: 15, height: 48, alignItems: "center", justifyContent: "center", marginHorizontal: 20, marginBottom: 14 },
   previewDoneText: { color: "#111111", fontSize: 14, fontWeight: "800" },
 });

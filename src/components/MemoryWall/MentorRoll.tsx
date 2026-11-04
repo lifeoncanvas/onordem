@@ -1,20 +1,14 @@
 import React from "react";
 import {
   Alert,
-  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Fonts, getCategoryAccent, Palette } from "@/constants/theme";
+import { AppFonts, getCategoryAccent, Palette } from "@/constants/theme";
 import { WallMentorProfile } from "@/types/memoryWall";
-
-const SCREEN_W = Dimensions.get("window").width;
-const GRID_GAP = 14;
-const PADDING_H = 20;
-const CARD_W = (SCREEN_W - PADDING_H * 2 - GRID_GAP) / 2;
 
 interface MentorRollProps {
   mentors: WallMentorProfile[];
@@ -31,7 +25,13 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-const BANNER_THEMES = ["#93363F", "#480E18", "#E49147", "#863D46", "#9E4048"];
+const PASTEL_ACCENTS = [
+  Palette.accentSky,
+  Palette.accentMint,
+  Palette.accentLavender,
+  Palette.accentPink,
+  Palette.accentPeach,
+];
 
 export default function MentorRoll({
   mentors,
@@ -64,16 +64,15 @@ export default function MentorRoll({
         </View>
       </View>
 
-      {/* 2-Column Grid */}
+      {/* 2-Column Responsive Grid */}
       <View style={styles.grid}>
         {mentors.map((mentor, idx) => {
           const initials = getInitials(mentor.name);
-          const accentColor = getCategoryAccent(mentor.relationship);
-          const bannerColor = mentor.coverColor || BANNER_THEMES[idx % BANNER_THEMES.length];
+          const accentColor = PASTEL_ACCENTS[idx % PASTEL_ACCENTS.length];
           const quoteText =
             mentor.meaningfulQuote ||
             mentor.description ||
-            "She stayed after class until fractions finally clicked.";
+            "Guiding with patience and unwavering belief.";
 
           return (
             <TouchableOpacity
@@ -84,64 +83,71 @@ export default function MentorRoll({
               accessibilityRole="button"
               accessibilityLabel={`${mentor.name} profile card`}
             >
-              {/* Top Banner (72px) with Cover Color & Refresh Button */}
-              <View style={[styles.banner, { backgroundColor: bannerColor }]}>
-                <View style={styles.bannerArc} />
+              {/* Header Top Accent Bar */}
+              <View style={[styles.cardHeaderAccent, { backgroundColor: `${accentColor}25` }]}>
+                <View style={[styles.accentPill, { backgroundColor: `${accentColor}35` }]}>
+                  <Ionicons
+                    name={(mentor.traitIcon as any) || "sparkles"}
+                    size={11}
+                    color={accentColor}
+                  />
+                  <Text style={[styles.traitPillText, { color: accentColor }]} numberOfLines={1}>
+                    {mentor.trait || "Mentor"}
+                  </Text>
+                </View>
+
                 <TouchableOpacity
                   onPress={() =>
-                    Alert.alert("Memory Cycled", `Showing another note for ${mentor.name}`)
+                    Alert.alert("Memory Cycled", `Showing another memory for ${mentor.name}`)
                   }
                   style={styles.flipBtn}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Flip memory"
+                  accessibilityLabel="Cycle memory"
                 >
-                  <Ionicons name="sync-outline" size={14} color="#FFFFFF" />
+                  <Ionicons name="sync-outline" size={13} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              {/* Overlapping Centered Circular Avatar with Dual Halo Ring */}
+              {/* Initials Avatar Ring */}
               <View style={styles.avatarWrap}>
-                <View style={styles.avatarHalo}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarInitials}>{initials}</Text>
+                <View style={[styles.avatarHalo, { borderColor: `${accentColor}60` }]}>
+                  <View style={[styles.avatarCircle, { backgroundColor: `${accentColor}20` }]}>
+                    <Text style={[styles.avatarInitials, { color: accentColor }]}>
+                      {initials}
+                    </Text>
                   </View>
                 </View>
               </View>
 
               {/* Card Body */}
               <View style={styles.cardBody}>
-                {/* Mentor Name in Cursive Script Style */}
+                {/* Mentor Name */}
                 <Text style={styles.mentorName} numberOfLines={2}>
                   {mentor.name}
                 </Text>
 
-                {/* Role / Relationship */}
-                <Text style={styles.mentorRole} numberOfLines={1}>
-                  {mentor.relationship}
-                </Text>
+                {/* Role Pill */}
+                <View style={styles.rolePill}>
+                  <Text style={styles.mentorRole} numberOfLines={1}>
+                    {mentor.relationship || "Guide"}
+                  </Text>
+                </View>
 
-                {/* Duration in Amber Italics */}
+                {/* Duration */}
                 <Text style={styles.mentorDuration} numberOfLines={1}>
                   {mentor.duration || "Guided you for years"}
                 </Text>
 
-                {/* Trait Pill Badge */}
-                <View style={styles.traitPill}>
-                  <Ionicons
-                    name={(mentor.traitIcon as any) || "compass-outline"}
-                    size={12}
-                    color={accentColor}
-                  />
-                  <Text style={styles.traitText} numberOfLines={1}>
-                    {mentor.trait || "Patient guide"}
+                {/* "The lesson I carry" label */}
+                <View style={styles.lessonHeadingRow}>
+                  <Ionicons name="bookmark-outline" size={11} color={accentColor} />
+                  <Text style={[styles.lessonLabel, { color: accentColor }]}>
+                    The lesson I carry
                   </Text>
                 </View>
 
-                {/* "The lesson I carry" label */}
-                <Text style={styles.lessonLabel}>The lesson I carry</Text>
-
-                {/* Quote Clamped to 3 lines */}
+                {/* Quote */}
                 <Text style={styles.quote} numberOfLines={3}>
                   “{quoteText}”
                 </Text>
@@ -152,13 +158,13 @@ export default function MentorRoll({
 
               {/* Memory Counter */}
               <View style={styles.memoryCountRow}>
-                <Ionicons name="book-outline" size={13} color={Palette.accentLavender} />
+                <Ionicons name="book-outline" size={12} color={Palette.textSecondary} />
                 <Text style={styles.memoryCountText}>
                   {mentor.itemCount || 4} memories
                 </Text>
               </View>
 
-              {/* Full-width Amber "Send thanks" Button */}
+              {/* "Send thanks" Button */}
               <TouchableOpacity
                 onPress={() => handleThanks(mentor)}
                 activeOpacity={0.8}
@@ -166,7 +172,7 @@ export default function MentorRoll({
                 accessibilityRole="button"
                 accessibilityLabel={`Send thanks to ${mentor.name}`}
               >
-                <Ionicons name="heart" size={13} color={Palette.textOnPrimary} />
+                <Ionicons name="heart" size={12} color="#000000" />
                 <Text style={styles.sendThanksText}>Send thanks</Text>
               </TouchableOpacity>
 
@@ -188,7 +194,7 @@ export default function MentorRoll({
             accessibilityLabel="Add a mentor"
           >
             <View style={styles.addIconCircle}>
-              <Ionicons name="add" size={24} color={Palette.accentSky} />
+              <Ionicons name="add" size={22} color={Palette.accentSky} />
             </View>
             <Text style={styles.addTitle}>Add a mentor</Text>
             <Text style={styles.addSubtitle}>Honor someone who helped you grow</Text>
@@ -199,11 +205,10 @@ export default function MentorRoll({
   );
 }
 
-
 const styles = StyleSheet.create({
   wrapper: {
     marginTop: 18,
-    paddingHorizontal: PADDING_H,
+    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -215,241 +220,235 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontFamily: Fonts.serif,
-    fontSize: 22,
+    fontFamily: AppFonts.displaySans,
+    fontSize: 21,
     fontWeight: "700",
-    color: Palette.textPrimary,
+    color: "#FFFFFF",
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   sectionSubtitle: {
+    fontFamily: AppFonts.body,
     fontSize: 12.5,
     color: Palette.textSecondary,
     fontWeight: "400",
   },
   countBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
   },
   countBadgeText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: Palette.textSecondary,
-    fontWeight: "500",
+    fontWeight: "600",
   },
+
+  // Responsive 2-column layout
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: GRID_GAP,
+    justifyContent: "space-between",
+    rowGap: 14,
   },
   card: {
-    width: CARD_W,
-    borderRadius: 24,
-    backgroundColor: Palette.surfaceCard,
+    width: "48.2%",
+    borderRadius: 22,
+    backgroundColor: "#161616",
     borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
     elevation: 3,
     display: "flex",
     flexDirection: "column",
   },
-  banner: {
-    height: 72,
+  cardHeaderAccent: {
+    height: 48,
     width: "100%",
-    position: "relative",
-    overflow: "hidden",
-    backgroundColor: Palette.surfaceElevated,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
   },
-  bannerArc: {
-    position: "absolute",
-    top: -24,
-    right: -24,
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: "rgba(0, 0, 0, 0.18)",
+  accentPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    maxWidth: "76%",
+  },
+  traitPillText: {
+    fontSize: 10,
+    fontWeight: "700",
   },
   flipBtn: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.24)",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.35)",
   },
   avatarWrap: {
-    marginTop: -36,
+    marginTop: -24,
     alignSelf: "center",
     zIndex: 2,
   },
   avatarHalo: {
     padding: 3,
-    borderRadius: 42,
+    borderRadius: 34,
     borderWidth: 2,
-    borderColor: "rgba(143, 211, 255, 0.4)",
-    backgroundColor: Palette.surfaceCard,
+    backgroundColor: "#161616",
   },
   avatarCircle: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: "#171717",
-    borderWidth: 1.5,
-    borderColor: "rgba(143, 211, 255, 0.25)",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
-    fontFamily: Fonts.serif,
-    fontSize: 21,
-    fontWeight: "700",
-    color: Palette.textPrimary,
-    letterSpacing: -0.5,
+    fontFamily: AppFonts.displaySans,
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   cardBody: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
+    paddingHorizontal: 10,
+    paddingTop: 6,
     paddingBottom: 4,
     alignItems: "center",
     flexGrow: 1,
   },
   mentorName: {
-    fontFamily: Fonts.serif,
-    fontStyle: "italic",
-    fontSize: 18,
+    fontFamily: AppFonts.displaySans,
+    fontSize: 15,
     fontWeight: "700",
-    color: Palette.textPrimary,
+    color: "#FFFFFF",
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 2,
+    lineHeight: 19,
+    marginBottom: 4,
+  },
+  rolePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    marginBottom: 4,
   },
   mentorRole: {
-    fontSize: 11.5,
+    fontFamily: AppFonts.body,
+    fontSize: 11,
     color: Palette.textSecondary,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "center",
-    marginBottom: 3,
   },
   mentorDuration: {
-    fontFamily: Fonts.serif,
-    fontStyle: "italic",
-    fontSize: 12.5,
-    color: Palette.accentAmber,
+    fontFamily: AppFonts.body,
+    fontSize: 11,
+    color: Palette.textMuted,
     textAlign: "center",
     marginBottom: 8,
   },
-  traitPill: {
+  lessonHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(255, 240, 154, 0.12)",
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    borderRadius: 999,
-    marginBottom: 10,
-    maxWidth: "94%",
-  },
-  traitText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Palette.textPrimary,
+    marginBottom: 3,
   },
   lessonLabel: {
-    fontSize: 11,
+    fontFamily: AppFonts.displaySans,
+    fontSize: 10.5,
     fontWeight: "700",
-    color: Palette.accentAmber,
-    marginBottom: 4,
     textAlign: "center",
   },
   quote: {
-    fontFamily: Fonts.serif,
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: Palette.textPrimary,
+    fontFamily: AppFonts.body,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: "#CCCCCC",
     textAlign: "center",
-    opacity: 0.95,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   divider: {
     width: "86%",
     alignSelf: "center",
     height: 1,
-    backgroundColor: Palette.borderSubtle,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     marginVertical: 8,
   },
   memoryCountRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
+    gap: 4,
     marginBottom: 8,
   },
   memoryCountText: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: Palette.textSecondary,
     fontWeight: "500",
   },
   sendThanksBtn: {
     backgroundColor: "#FFFFFF",
-    marginHorizontal: 8,
-    paddingVertical: 8.5,
-    borderRadius: 999,
+    marginHorizontal: 10,
+    paddingVertical: 7.5,
+    borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 2,
   },
   sendThanksText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "700",
     color: "#000000",
   },
   lastThankedText: {
-    fontSize: 10.5,
-    color: Palette.textSecondary,
+    fontSize: 10,
+    color: Palette.textMuted,
     textAlign: "center",
-    marginTop: 7,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 10,
   },
   addCard: {
-    width: CARD_W,
-    minHeight: 240,
-    borderRadius: 24,
+    width: "48.2%",
+    minHeight: 220,
+    borderRadius: 22,
     borderWidth: 1.5,
     borderStyle: "dashed",
-    borderColor: Palette.borderSubtle,
-    backgroundColor: Palette.surfaceCard,
+    borderColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "#161616",
     alignItems: "center",
     justifyContent: "center",
     padding: 14,
   },
   addIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Palette.surfaceElevated,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(143, 211, 255, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
   addTitle: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: "700",
-    color: Palette.textPrimary,
-    marginBottom: 2,
+    color: "#FFFFFF",
+    marginBottom: 3,
     textAlign: "center",
   },
   addSubtitle: {

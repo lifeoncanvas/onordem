@@ -64,9 +64,7 @@ export default function CreationStudioCard({
   };
 
   const isFeatureCard = item.id === "tribute";
-  const isLessonCard = item.id === "lesson" || item.id === "memo";
-  const isFullWidthCard =
-    isFeatureCard || isLessonCard || item.id === "letter";
+  const isFullWidthCard = isFeatureCard;
 
   return (
     <Animated.View
@@ -86,7 +84,6 @@ export default function CreationStudioCard({
           styles.cardInner,
           getSpecificCardStyle(item.id),
           isFeatureCard && styles.featureCardLayout,
-          isLessonCard && styles.lessonCardLayout,
           (isSelected || pressed) && styles.cardActiveState,
         ]}
         accessibilityRole="button"
@@ -110,24 +107,6 @@ export default function CreationStudioCard({
               <View style={styles.actionArrowCircleLarge}>
                 <Ionicons name="arrow-forward" size={16} color="#000000" />
               </View>
-            </View>
-          </View>
-        ) : isLessonCard ? (
-          <View style={styles.lessonContentRow}>
-            <View style={[styles.iconWrapperLarge, getIconWrapperStyle(item.id)]}>
-              <Ionicons name={item.icon} size={22} color={getIconColor(item.id)} />
-            </View>
-            <View style={styles.lessonTextContent}>
-              <View style={styles.lessonTitleRow}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.lessonBadgeText}>
-                  {item.badgeLabel.toUpperCase()}
-                </Text>
-              </View>
-              <Text style={[styles.cardSubtitle, { color: Palette.accentLavender }]}>{item.subtitle}</Text>
-            </View>
-            <View style={styles.actionArrowCircle}>
-              <Ionicons name="arrow-forward" size={14} color="#000000" />
             </View>
           </View>
         ) : (
@@ -225,11 +204,11 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   cardInner: {
-    backgroundColor: "#16050B",
+    backgroundColor: "#161616",
     borderRadius: 24,
     padding: 16,
     borderWidth: 1.2,
-    borderColor: "rgba(239, 162, 91, 0.16)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
@@ -237,7 +216,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     position: "relative",
     overflow: "hidden",
-    minHeight: 180,
+    minHeight: 196,
     justifyContent: "space-between",
   },
   cardActiveState: {
@@ -251,20 +230,20 @@ const styles = StyleSheet.create({
 
   // Bespoke styles per card
   tributeCard: {
-    backgroundColor: "#200812",
-    borderColor: "rgba(255, 158, 207, 0.26)",
+    backgroundColor: "#1B1518",
+    borderColor: "rgba(255, 158, 207, 0.24)",
   },
   memoryCard: {
-    backgroundColor: "#130A14",
-    borderColor: "rgba(143, 211, 255, 0.2)",
+    backgroundColor: "#141718",
+    borderColor: "rgba(143, 211, 255, 0.22)",
   },
   letterCard: {
-    backgroundColor: "#1B0B10",
-    borderColor: "rgba(255, 184, 153, 0.2)",
+    backgroundColor: "#1A1715",
+    borderColor: "rgba(255, 184, 153, 0.22)",
   },
   lessonCard: {
-    backgroundColor: "#18080E",
-    borderColor: "rgba(239, 162, 91, 0.2)",
+    backgroundColor: "#18151A",
+    borderColor: "rgba(216, 180, 254, 0.22)",
   },
   featureCardLayout: {
     minHeight: 148,
