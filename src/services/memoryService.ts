@@ -392,7 +392,16 @@ class MemoryService {
     }
   }
 
-  public addMemory(item: WallItem): string {
+  public addMemory(
+    item: WallItem,
+    meta?: {
+      recipientEmail?: string;
+      sendDedicationEmail?: boolean;
+      signature?: string;
+      salutation?: string;
+      signoff?: string;
+    }
+  ): string {
     const existingIndex = this.items.findIndex((saved) => saved.id === item.id);
     const mentor =
       this.mentors.find((profile) => profile.name.toLowerCase() === item.mentorName.toLowerCase()) ??
@@ -426,16 +435,53 @@ class MemoryService {
     this.persistUserItems();
 
     // Asynchronously synchronize to Spring Boot + Neon DB backend
+    const storyText =
+      "story" in newItem && (newItem as any).story
+        ? (newItem as any).story
+        : "letterBody" in newItem && (newItem as any).letterBody
+        ? (newItem as any).letterBody
+        : "excerpt" in newItem && (newItem as any).excerpt
+        ? (newItem as any).excerpt
+        : "preview" in newItem && (newItem as any).preview
+        ? (newItem as any).preview
+        : "";
+
+    const excerptText =
+      "excerpt" in newItem && (newItem as any).excerpt
+        ? (newItem as any).excerpt
+        : "preview" in newItem && (newItem as any).preview
+        ? (newItem as any).preview
+        : storyText.slice(0, 200);
+
+    const sig =
+      meta?.signature ||
+      ("signature" in newItem && (newItem as any).signature ? (newItem as any).signature : undefined);
+
     api.tributes
       .create({
         mentorName: newItem.mentorName,
         kind: newItem.kind,
-        title: "title" in newItem ? newItem.title : ("lessonTitle" in newItem ? (newItem as any).lessonTitle : newItem.mentorName),
+        title:
+          "title" in newItem
+            ? newItem.title
+            : "lessonTitle" in newItem
+            ? (newItem as any).lessonTitle
+            : newItem.mentorName,
         relationship: newItem.relationship || "Mentor",
-        photoUri: "photoUri" in newItem ? (newItem as any).photoUri : ("imageUri" in newItem ? (newItem as any).imageUri : ""),
+        photoUri:
+          "photoUri" in newItem
+            ? (newItem as any).photoUri
+            : "imageUri" in newItem
+            ? (newItem as any).imageUri
+            : "",
         quote: "quote" in newItem ? (newItem as any).quote : "",
-        story: "story" in newItem ? (newItem as any).story : ("excerpt" in newItem ? (newItem as any).excerpt : ""),
-        excerpt: "excerpt" in newItem ? (newItem as any).excerpt : "",
+        story: storyText,
+        excerpt: excerptText,
+        salutation: "salutation" in newItem ? (newItem as any).salutation : meta?.salutation,
+        signoff: "signoff" in newItem ? (newItem as any).signoff : meta?.signoff,
+        signature: sig,
+        recipientEmail: meta?.recipientEmail,
+        sendDedicationEmail: meta?.sendDedicationEmail,
         lessonCarried: "lessonCarried" in newItem ? (newItem as any).lessonCarried : "",
         momentToRemember: "momentToRemember" in newItem ? (newItem as any).momentToRemember : "",
         privacy: "PUBLIC",

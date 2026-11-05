@@ -319,60 +319,80 @@ export default function CreationStudioScreen({
       const createdAt = new Date().toISOString();
       const savedId = idRef.current.replace("creation-draft-", "creation-");
       const year = dateOrYear.match(/\d{4}/)?.[0] ?? String(new Date().getFullYear());
+      const authorProf = userProfileService.getProfile();
+      const effectiveSig = signature.trim() || (authorProf.name && authorProf.name !== "Sarita Baiga" ? authorProf.name : "Alex Turner");
+
+      const dedicationMeta = {
+        recipientEmail: mentorEmail.trim() || undefined,
+        sendDedicationEmail: sendDedicationEmail && !!mentorEmail.trim(),
+        signature: effectiveSig,
+        salutation: greeting.trim() || undefined,
+        signoff: closing.trim() || undefined,
+      };
+
       if (type === "memory") {
-        memoryService.addMemory({
-          kind: "memory",
-          id: savedId,
-          mentorName: mentorName.trim(),
-          relationship,
-          title: title.trim() || "A Moment Cherished",
-          excerpt: body.trim(),
-          story: body.trim(),
-          year,
-          emotion: "Gratitude",
-          emotionColor: Palette.accentMint,
-          imageUri: photoUri || undefined,
-          quote: quote.trim() || undefined,
-          momentToRemember: dateOrYear.trim() || undefined,
-          createdAt,
-          isPinned: false,
-        });
+        memoryService.addMemory(
+          {
+            kind: "memory",
+            id: savedId,
+            mentorName: mentorName.trim(),
+            relationship,
+            title: title.trim() || "A Moment Cherished",
+            excerpt: body.trim(),
+            story: body.trim(),
+            year,
+            emotion: "Gratitude",
+            emotionColor: Palette.accentMint,
+            imageUri: photoUri || undefined,
+            quote: quote.trim() || undefined,
+            momentToRemember: dateOrYear.trim() || undefined,
+            createdAt,
+            isPinned: false,
+          },
+          dedicationMeta
+        );
       } else if (type === "letter") {
-        memoryService.addMemory({
-          kind: "letter",
-          id: savedId,
-          mentorName: mentorName.trim(),
-          relationship,
-          title: title.trim() || `A Letter to ${mentorName.trim()}`,
-          preview: body.trim().slice(0, 180),
-          letterBody: body.trim(),
-          salutation: greeting.trim() || `Dear ${mentorName.trim()},`,
-          signoff: closing.trim(),
-          signature: signature.trim(),
-          paperStyle: layoutStyle,
-          envelopeStyle: decorations.includes("envelope") ? "classic" : undefined,
-          date: dateOrYear.trim() || undefined,
-          wordCount: body.trim().split(/\s+/).filter(Boolean).length,
-          mood: "Grateful",
-          createdAt,
-          isPinned: false,
-        });
+        memoryService.addMemory(
+          {
+            kind: "letter",
+            id: savedId,
+            mentorName: mentorName.trim(),
+            relationship,
+            title: title.trim() || `A Letter to ${mentorName.trim()}`,
+            preview: body.trim().slice(0, 180),
+            letterBody: body.trim(),
+            salutation: greeting.trim() || `Dear ${mentorName.trim()},`,
+            signoff: closing.trim(),
+            signature: effectiveSig,
+            paperStyle: layoutStyle,
+            envelopeStyle: decorations.includes("envelope") ? "classic" : undefined,
+            date: dateOrYear.trim() || undefined,
+            wordCount: body.trim().split(/\s+/).filter(Boolean).length,
+            mood: "Grateful",
+            createdAt,
+            isPinned: false,
+          },
+          dedicationMeta
+        );
       } else {
-        memoryService.addMemory({
-          kind: "lesson",
-          id: savedId,
-          mentorName: mentorName.trim(),
-          relationship,
-          lessonTitle: title.trim() || "A Note for You",
-          quote: quote.trim() || body.trim(),
-          story: body.trim(),
-          imageUri: photoUri || undefined,
-          layoutStyle,
-          decorations,
-          category: "Note",
-          createdAt,
-          isPinned: false,
-        });
+        memoryService.addMemory(
+          {
+            kind: "lesson",
+            id: savedId,
+            mentorName: mentorName.trim(),
+            relationship,
+            lessonTitle: title.trim() || "A Note for You",
+            quote: quote.trim() || body.trim(),
+            story: body.trim(),
+            imageUri: photoUri || undefined,
+            layoutStyle,
+            decorations,
+            category: "Note",
+            createdAt,
+            isPinned: false,
+          },
+          dedicationMeta
+        );
       }
       try {
         await creationDraftService.removeDraft(idRef.current);

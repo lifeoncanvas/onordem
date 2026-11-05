@@ -65,8 +65,9 @@ export default function MemoryWallScreen() {
       setMentors(memoryService.getAllMentorProfiles());
     };
     sync();
-    // Pull latest community contributions from database
-    memoryService.syncWithBackend().catch(() => {});
+    // Initialize saved memories from storage & pull latest community contributions from database
+    memoryService.initialize().then(sync).catch(() => {});
+    memoryService.syncWithBackend().then(sync).catch(() => {});
     const unsubscribe = memoryService.subscribe(sync);
     return () => {
       unsubscribe();
