@@ -37,6 +37,7 @@ import VoiceRecorderModal, {
 import { memoryService } from "@/services/memoryService";
 import { userProfileService } from "@/services/userProfileService";
 import type { UserProfile } from "@/services/userProfileService";
+import { getAuthToken } from "@/services/api";
 import type { WallItem, WallMemory } from "@/types/memoryWall";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useQrModal } from "@/context/QrModalContext";
@@ -480,6 +481,19 @@ export default function HomeScreen() {
   const { openQrModal } = useQrModal();
   const [reflectionInput, setReflectionInput] = useState("");
   const [hasSubmittedReflection, setHasSubmittedReflection] = useState(false);
+
+  // Auth guard: If user has no active token, redirect to /login
+  React.useEffect(() => {
+    getAuthToken()
+      .then((token) => {
+        if (!token) {
+          router.replace("/login");
+        }
+      })
+      .catch(() => {
+        router.replace("/login");
+      });
+  }, []);
 
   React.useEffect(
     () => userProfileService.subscribe((nextProfile) => setProfile(nextProfile)),
