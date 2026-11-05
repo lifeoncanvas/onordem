@@ -120,18 +120,18 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
   },
   chipUnselected: {
-    backgroundColor: Palette.pureWhite,
-    borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    backgroundColor: "#161616",
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 1,
   },
   chipSelected: {
-    backgroundColor: Palette.oceanTeal, // Ocean Teal for selected category
-    borderColor: Palette.oceanTeal,
-    shadowColor: Palette.oceanTeal,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FFFFFF",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -146,20 +146,20 @@ const styles = StyleSheet.create({
     marginRight: 7,
   },
   iconWrapUnselected: {
-    backgroundColor: Palette.mintMist,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
   },
   iconWrapSelected: {
-    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    backgroundColor: "rgba(0, 0, 0, 0.08)",
   },
   chipLabel: {
     fontSize: 13,
   },
   chipLabelUnselected: {
     fontWeight: "600",
-    color: Palette.deepTeal,
+    color: "#FFFFFF",
   },
   chipLabelSelected: {
     fontWeight: "800",
-    color: Palette.pureWhite,
+    color: "#111111",
   },
 });

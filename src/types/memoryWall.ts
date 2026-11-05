@@ -180,5 +180,6 @@ export interface WallFilterTab {
   key: WallCategory;
   label: string;
   icon?: string;
+  color?: string;
   count?: number;
 }

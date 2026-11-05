@@ -114,6 +114,8 @@ function StudioSheetContent({
 
   const typeConfig = getStudioTypeConfig(creationType);
 
+  if (!typeConfig) return null;
+
   return (
     <TouchableWithoutFeedback onPress={onClose}>
       <View style={styles.backdrop}>
@@ -433,6 +435,8 @@ function getDefaultTitle(type: CreationType): string {
       return "Dear Mentor";
     case "lesson":
       return "Wisdom Passed Forward";
+    default:
+      return "New Entry";
   }
 }
 

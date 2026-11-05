@@ -27,7 +27,7 @@ export default function CreationCardsSection({
         </View>
       </View>
 
-      {/* Two-column Studio Card Grid */}
+      {/* Flexible card grid */}
       <View style={styles.gridContainer}>
         {options.map((item) => (
           <CreationStudioCard
@@ -67,6 +67,7 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "stretch",
     justifyContent: "space-between",
   },
 });

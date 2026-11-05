@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppFonts, Palette } from "@/constants/theme";
+import CommentsModal from "@/components/Comments/CommentsModal";
 
 export interface GratitudePostData {
   id: string;
@@ -32,6 +33,7 @@ interface GratitudeCardProps {
 export default function GratitudeCard({ post, onPress }: GratitudeCardProps) {
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
 
   const toggleLike = () => {
     setLiked((prev) => !prev);
@@ -49,81 +51,85 @@ export default function GratitudeCard({ post, onPress }: GratitudeCardProps) {
   };
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.92}
-      onPress={onPress}
-      style={styles.container}
-    >
-      <View style={styles.cardSurface}>
-        {/* Author & Mentor Header */}
-        <View style={styles.header}>
-          <Image source={{ uri: post.authorAvatar }} style={styles.authorAvatar} />
-          <View style={styles.headerText}>
-            <Text style={styles.authorName}>{post.authorName}</Text>
-            <Text style={styles.dedicationText}>
-              Honouring <Text style={styles.mentorHighlight}>{post.mentorName}</Text>
-            </Text>
-          </View>
-          <Text style={styles.timeAgo}>{post.timeAgo}</Text>
-        </View>
-
-        {/* Message */}
-        <Text style={styles.messageText}>
-          &ldquo;{post.message}&rdquo;
-        </Text>
-
-        {/* Optional Media */}
-        {post.image ? (
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: post.image }} style={styles.postImage} />
-          </View>
-        ) : null}
-
-        {/* Action Bar */}
-        <View style={styles.actionBar}>
-          <View style={styles.leftActions}>
-            <TouchableOpacity
-              onPress={toggleLike}
-              activeOpacity={0.7}
-              style={styles.actionBtn}
-            >
-              <Ionicons
-                name={liked ? "heart" : "heart-outline"}
-                size={18}
-                color={liked ? Palette.turquoise : Palette.textMuted}
-              />
-              <Text style={[styles.actionCount, liked && styles.actionCountActive]}>
-                {likesCount}
+    <>
+      <TouchableOpacity
+        activeOpacity={0.92}
+        onPress={onPress}
+        style={styles.container}
+      >
+        <View style={styles.cardSurface}>
+          {/* Author & Mentor Header */}
+          <View style={styles.header}>
+            <Image source={{ uri: post.authorAvatar }} style={styles.authorAvatar} />
+            <View style={styles.headerText}>
+              <Text style={styles.authorName}>{post.authorName}</Text>
+              <Text style={styles.dedicationText}>
+                Honouring <Text style={styles.mentorHighlight}>{post.mentorName}</Text>
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert(
-                  "Comments unavailable",
-                  "Community comments are not available in this local-only app."
-                )
-              }
-              activeOpacity={0.7}
-              style={styles.actionBtn}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${post.commentsCount} comments`}
-            >
-              <Ionicons name="chatbubble-outline" size={17} color={Palette.textMuted} />
-              <Text style={styles.actionCount}>{post.commentsCount}</Text>
-            </TouchableOpacity>
+            </View>
+            <Text style={styles.timeAgo}>{post.timeAgo}</Text>
           </View>
 
-          <TouchableOpacity
-            onPress={handleShare}
-            activeOpacity={0.7}
-            style={styles.shareBtn}
-          >
-            <Ionicons name="share-social-outline" size={18} color={Palette.oceanTeal} />
-          </TouchableOpacity>
+          {/* Message */}
+          <Text style={styles.messageText}>
+            &ldquo;{post.message}&rdquo;
+          </Text>
+
+          {/* Optional Media */}
+          {post.image ? (
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: post.image }} style={styles.postImage} />
+            </View>
+          ) : null}
+
+          {/* Action Bar */}
+          <View style={styles.actionBar}>
+            <View style={styles.leftActions}>
+              <TouchableOpacity
+                onPress={toggleLike}
+                activeOpacity={0.7}
+                style={styles.actionBtn}
+              >
+                <Ionicons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={18}
+                  color={liked ? Palette.accentPink : Palette.textMuted}
+                />
+                <Text style={[styles.actionCount, liked && styles.actionCountActive]}>
+                  {likesCount}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setIsCommentsOpen(true)}
+                activeOpacity={0.7}
+                style={styles.actionBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`View comments`}
+              >
+                <Ionicons name="chatbubble-outline" size={17} color={Palette.accentSky} />
+                <Text style={styles.actionCount}>{post.commentsCount}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleShare}
+              activeOpacity={0.7}
+              style={styles.shareBtn}
+            >
+              <Ionicons name="share-social-outline" size={18} color={Palette.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      <CommentsModal
+        visible={isCommentsOpen}
+        targetId={post.id}
+        targetTitle={`Tribute to ${post.mentorName}`}
+        onClose={() => setIsCommentsOpen(false)}
+      />
+    </>
   );
 }
 
@@ -132,12 +138,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     marginBottom: 16,
     marginHorizontal: 20,
-    backgroundColor: Palette.pureWhite, // Pure White card surface
+    backgroundColor: "#181818",
     borderWidth: 1.2,
-    borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 3,
   },
@@ -155,8 +161,8 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1.5,
-    borderColor: Palette.turquoise, // Turquoise avatar ring
-    backgroundColor: Palette.mintMist,
+    borderColor: Palette.accentSky,
+    backgroundColor: "#242424",
   },
   headerText: {
     flex: 1,
@@ -165,8 +171,8 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 14.5,
     fontWeight: "800",
-    color: Palette.deepTeal,
-    fontFamily: AppFonts.displaySans,
+    color: "#FFFFFF",
+    fontFamily: AppFonts.body,
   },
   dedicationText: {
     fontSize: 12,
@@ -175,7 +181,7 @@ const styles = StyleSheet.create({
     fontFamily: AppFonts.body,
   },
   mentorHighlight: {
-    color: Palette.oceanTeal,
+    color: Palette.accentSky,
     fontWeight: "700",
     fontFamily: AppFonts.body,
   },
@@ -187,10 +193,9 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 14,
     lineHeight: 21,
-    color: Palette.deepTeal,
+    color: "#F1F5F9",
     marginBottom: 12,
-    fontFamily: AppFonts.displaySerif,
-    fontStyle: "italic",
+    fontFamily: AppFonts.body,
   },
   imageContainer: {
     width: "100%",
@@ -202,7 +207,6 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
   actionBar: {
     flexDirection: "row",
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(84, 0, 14, 0.08)",
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
   },
   leftActions: {
     flexDirection: "row",
@@ -220,17 +224,27 @@ const styles = StyleSheet.create({
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
   },
   actionCount: {
     fontSize: 12.5,
     color: Palette.textSecondary,
     fontWeight: "600",
+    fontFamily: AppFonts.body,
   },
   actionCountActive: {
-    color: Palette.turquoise,
+    color: Palette.accentPink,
   },
   shareBtn: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
   },
 });

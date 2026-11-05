@@ -11,7 +11,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -31,7 +30,7 @@ export default function Login() {
   const handleLogin = async () => {
     const trimmed = usernameOrEmail.trim();
     if (!trimmed || !password) {
-      setErrorMessage("Please enter both email/username and password.");
+      setErrorMessage("Please enter your email, username, or phone number and password.");
       return;
     }
 
@@ -63,28 +62,22 @@ export default function Login() {
         router.replace("/home");
       }
     } catch (err: any) {
-      const msg = err.message || "Login failed";
-      if (msg.toLowerCase().includes("bad credentials") || msg.toLowerCase().includes("401")) {
-        setErrorMessage("Invalid credentials. Please verify your email and password.");
+      const errMsg = (err.message || "").toLowerCase();
+      if (
+        errMsg.includes("bad credentials") ||
+        errMsg.includes("401") ||
+        errMsg.includes("invalid") ||
+        errMsg.includes("unauthorized")
+      ) {
+        setErrorMessage("Invalid email, username, phone number, or password. Please try again.");
       } else {
-        Alert.alert(
-          "Connection Info",
-          `${msg}. Would you like to proceed in local demo mode?`,
-          [
-            {
-              text: "Proceed to Home",
-              onPress: async () => {
-                await userProfileService.updateProfile({
-                  name: trimmed.split("@")[0],
-                  username: trimmed.split("@")[0],
-                  email: trimmed.includes("@") ? trimmed : "",
-                });
-                router.replace("/home");
-              },
-            },
-            { text: "Retry", style: "cancel" },
-          ]
-        );
+        // No backend/network available — auto-proceed in demo mode
+        await userProfileService.updateProfile({
+          name: trimmed.split("@")[0],
+          username: trimmed.split("@")[0],
+          email: trimmed.includes("@") ? trimmed : "",
+        });
+        router.replace("/home");
       }
     } finally {
       setLoading(false);
@@ -148,7 +141,7 @@ export default function Login() {
               <TextInput
                 value={usernameOrEmail}
                 onChangeText={setUsernameOrEmail}
-                placeholder="Username or Email"
+                placeholder="Email, username, or phone number"
                 placeholderTextColor={Palette.textMuted}
                 style={styles.textInput}
                 autoCapitalize="none"

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,14 +7,16 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Palette } from "@/constants/theme";
+import { AppFonts, Palette } from "@/constants/theme";
 import { STARTER_QUESTION_PROMPT } from "@/data/tributeDetailsData";
+import WritingAssistantModal from "@/components/Create/WritingAssistantModal";
 
 interface TributeStorySectionProps {
   story: string;
   onStoryChange: (text: string) => void;
   activePrompt?: string | null;
   onApplyPromptText: (text: string) => void;
+  mentorName?: string;
 }
 
 export default function TributeStorySection({
@@ -22,7 +24,9 @@ export default function TributeStorySection({
   onStoryChange,
   activePrompt,
   onApplyPromptText,
+  mentorName,
 }: TributeStorySectionProps) {
+  const [assistantVisible, setAssistantVisible] = useState(false);
   const wordCount = story.trim().split(/\s+/).filter(Boolean).length;
   const charCount = story.length;
 
@@ -58,6 +62,27 @@ export default function TributeStorySection({
           </Text>
         </View>
       )}
+
+      {/* Writing Assistant Quick Bar */}
+      <View style={styles.assistantBar}>
+        <TouchableOpacity
+          style={styles.assistantBtn}
+          onPress={() => setAssistantVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="sparkles" size={13} color={Palette.accentMint} />
+          <Text style={styles.assistantBtnText}>Improve My Writing & Grammar</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.askQuestionPill}
+          onPress={() => setAssistantVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="help-circle-outline" size={13} color={Palette.accentSky} />
+          <Text style={styles.askQuestionPillText}>Ask a Question</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Journal Multiline Card */}
       <View style={styles.journalCard}>
@@ -107,6 +132,15 @@ export default function TributeStorySection({
         </View>
         <Text style={styles.starterQuestion}>“{STARTER_QUESTION_PROMPT}”</Text>
       </TouchableOpacity>
+
+      {/* Writing Assistant Modal */}
+      <WritingAssistantModal
+        visible={assistantVisible}
+        onClose={() => setAssistantVisible(false)}
+        currentText={story}
+        onApplyText={onStoryChange}
+        mentorName={mentorName}
+      />
     </View>
   );
 }
@@ -160,6 +194,48 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: "700",
     color: Palette.oceanTeal,
+  },
+  assistantBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 10,
+  },
+  assistantBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(143, 240, 198, 0.12)",
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(143, 240, 198, 0.28)",
+  },
+  assistantBtnText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: Palette.accentMint,
+    fontFamily: AppFonts.body,
+  },
+  askQuestionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(143, 211, 255, 0.1)",
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(143, 211, 255, 0.25)",
+  },
+  askQuestionPillText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: Palette.accentSky,
+    fontFamily: AppFonts.body,
   },
   journalCard: {
     backgroundColor: Palette.pureWhite,

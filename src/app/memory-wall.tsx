@@ -41,12 +41,20 @@ import { getJourneyNodes } from "@/data/memoryWallData";
 import { WallCategory, WallFilterTab, WallItem, WallMentorProfile } from "@/types/memoryWall";
 
 const CATEGORY_FILTER_TABS: WallFilterTab[] = [
+<<<<<<< HEAD
+  { key: "all", label: "All", icon: "sparkles-outline", color: Palette.accentSky },
+  { key: "school", label: "School", icon: "school-outline", color: Palette.accentLavender },
+  { key: "study", label: "Study", icon: "book-outline", color: Palette.accentMint },
+  { key: "work", label: "Work", icon: "briefcase-outline", color: Palette.accentPeach },
+  { key: "life", label: "Life", icon: "heart-outline", color: Palette.accentPink },
+=======
   { key: "all", label: "All" },
   { key: "letters", label: "Letters" },
   { key: "memories", label: "Memories" },
   { key: "school", label: "School" },
   { key: "work", label: "Work" },
   { key: "life", label: "Life" },
+>>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
 ];
 
 export default function MemoryWallScreen() {

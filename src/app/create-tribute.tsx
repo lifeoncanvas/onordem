@@ -359,6 +359,7 @@ export default function CreateTributeScreen() {
               }}
               activePrompt={activePromptText}
               onApplyPromptText={(prompt) => setStory((prev) => prev + "\n" + prompt)}
+              mentorName={mentorName}
             />
 
             {/* ======================================================== */}

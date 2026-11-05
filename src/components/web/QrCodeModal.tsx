@@ -9,11 +9,11 @@ import {
   ScrollView,
   Animated,
   Easing,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import QRCodeSvg from "./QRCodeSvg";
-import { Palette } from "@/constants/theme";
 
 interface QrCodeModalProps {
   visible: boolean;
@@ -28,11 +28,14 @@ export default function QrCodeModal({
   appUrl = "https://onodem.com",
   initialTab = "show",
 }: QrCodeModalProps) {
+  const { width, height } = useWindowDimensions();
+  const qrSize = Math.max(150, Math.min(220, width - 80, height * 0.3));
   const [activeTab, setActiveTab] = useState<"show" | "scan">(initialTab);
   const [copied, setCopied] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const videoRef = useRef<any>(null);
   const streamRef = useRef<any>(null);
@@ -187,11 +190,37 @@ export default function QrCodeModal({
   };
 
   const handleCopy = async () => {
-    if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+    try {
+      if (Platform.OS !== "web" || typeof navigator === "undefined" || !navigator.clipboard) {
+        setActionError("Copy isn't available in this browser.");
+        return;
+      }
       await navigator.clipboard.writeText(appUrl);
+      setActionError(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setActionError("Couldn't copy the link. Please try again.");
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleShare = async () => {
+    if (Platform.OS !== "web" || typeof navigator === "undefined" || !navigator.share) {
+      await handleCopy();
+      return;
+    }
+
+    try {
+      await navigator.share({
+        title: "Honour Your Mentor",
+        text: "Take your memories with you.",
+        url: appUrl,
+      });
+      setActionError(null);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      setActionError("Couldn't open sharing. You can copy the link instead.");
+    }
   };
 
   const handleFileUpload = async (event: any) => {
@@ -224,105 +253,99 @@ export default function QrCodeModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={styles.card}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTitleRow}>
-              <View style={styles.brandIcon}>
-                <Ionicons name="qr-code" size={18} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={styles.title}>Mobile App Access</Text>
-                <Text style={styles.headerSubtitle}>Honour Your Mentor on any device</Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} accessibilityLabel="Close modal">
-              <Ionicons name="close" size={22} color="#A1A1AA" />
-            </TouchableOpacity>
-          </View>
-
-          {/* High-Contrast Tab Selector */}
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === "show" && styles.tabActive]}
-              onPress={() => handleTabChange("show")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="phone-portrait-outline"
-                size={16}
-                color={activeTab === "show" ? "#09090B" : "#A1A1AA"}
-              />
-              <Text style={[styles.tabText, activeTab === "show" && styles.tabTextActive]}>
-                Scan with Phone
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.tab, activeTab === "scan" && styles.tabActive]}
-              onPress={() => handleTabChange("scan")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="scan-outline"
-                size={16}
-                color={activeTab === "scan" ? "#09090B" : "#A1A1AA"}
-              />
-              <Text style={[styles.tabText, activeTab === "scan" && styles.tabTextActive]}>
-                Camera Scanner
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={handleClose}
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Close app install popup"
+          >
+            <Ionicons name="close" size={21} color="#A1A1A1" />
+          </TouchableOpacity>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             {activeTab === "show" ? (
-              // TAB 1: SHOW HIGH-CONTRAST QR CODE TO INSTALL / OPEN
-              <View style={styles.tabContent}>
-                <Text style={styles.instruction}>
-                  Scan this QR code with your phone camera to open and install{"\n"}
-                  <Text style={styles.brandHighlight}>Honour Your Mentor</Text> on your phone.
-                </Text>
-
-                {/* High Contrast Jet Black on Pure White QR Code Card */}
-                <View style={styles.qrWrapper}>
-                  <QRCodeSvg value={appUrl} size={210} color="#000000" backgroundColor="#FFFFFF" />
+              <View style={styles.installContent}>
+                <View style={styles.benefitPills}>
+                  <Text style={[styles.benefitPill, styles.benefitPillPeach]}>Birthday reminders</Text>
+                  <Text style={[styles.benefitPill, styles.benefitPillPink]}>Tributes anywhere</Text>
+                  <Text style={[styles.benefitPill, styles.benefitPillMint]}>Installs in seconds</Text>
                 </View>
 
-                {/* URL Chip & Copy Button */}
-                <View style={styles.urlChip}>
-                  <Ionicons name="link-outline" size={16} color="#A1A1AA" />
-                  <Text style={styles.urlText} numberOfLines={1}>
-                    {appUrl}
-                  </Text>
-                  <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
+                <Text style={styles.installTitle}>Take your memories{"\n"}with you</Text>
+
+                <View style={styles.qrWrapper}>
+                  <QRCodeSvg
+                    value={appUrl}
+                    size={qrSize}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.installSteps}>
+                  <View style={styles.installStep}>
+                    <Text style={[styles.stepNumber, styles.stepNumberMint]}>1</Text>
+                    <Text style={styles.stepLabel}>Open your camera</Text>
+                  </View>
+                  <View style={styles.installStep}>
+                    <Text style={[styles.stepNumber, styles.stepNumberPink]}>2</Text>
+                    <Text style={styles.stepLabel}>Point at the code</Text>
+                  </View>
+                  <View style={styles.installStep}>
+                    <Text style={[styles.stepNumber, styles.stepNumberPeach]}>3</Text>
+                    <Text style={styles.stepLabel}>Tap Install</Text>
+                  </View>
+                </View>
+
+                <View style={styles.linkActions}>
+                  <TouchableOpacity
+                    style={styles.sendLinkBtn}
+                    onPress={handleShare}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="paper-plane-outline" size={17} color="#111111" />
+                    <Text style={styles.sendLinkBtnText}>Send link to my phone</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.copyLinkBtn}
+                    onPress={handleCopy}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                  >
                     <Ionicons
-                      name={copied ? "checkmark-circle" : "copy-outline"}
-                      size={14}
-                      color={copied ? "#34D399" : "#09090B"}
+                      name={copied ? "checkmark" : "copy-outline"}
+                      size={16}
+                      color={copied ? "#8FF0C6" : "#FFFFFF"}
                     />
-                    <Text style={styles.copyBtnText}>{copied ? "Copied!" : "Copy"}</Text>
+                    <Text style={styles.copyLinkBtnText}>{copied ? "Copied!" : "Copy link"}</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* Step-by-step PWA install guide */}
-                <View style={styles.guideContainer}>
-                  <Text style={styles.guideTitle}>How to install as an App (PWA):</Text>
-                  <View style={styles.stepRow}>
-                    <Ionicons name="logo-apple" size={17} color="#FFFFFF" style={styles.stepIcon} />
-                    <Text style={styles.stepText}>
-                      <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>iPhone/iPad:</Text> Point Camera at code → Open in Safari → Tap Share <Ionicons name="share-outline" size={12} color="#FFFFFF" /> → Tap <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>&quot;Add to Home Screen&quot;</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.stepRow}>
-                    <Ionicons name="logo-android" size={17} color="#34D399" style={styles.stepIcon} />
-                    <Text style={styles.stepText}>
-                      <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>Android:</Text> Point Camera / Google Lens → Open in Chrome → Tap <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>&quot;Install App&quot;</Text> or Menu <Ionicons name="ellipsis-vertical" size={12} color="#FFFFFF" /> → &quot;Add to Home screen&quot;
-                    </Text>
-                  </View>
-                </View>
+                {actionError && <Text style={styles.actionError}>{actionError}</Text>}
+
+                <TouchableOpacity
+                  style={styles.scannerLink}
+                  onPress={() => handleTabChange("scan")}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="scan-outline" size={15} color="#BDBDBD" />
+                  <Text style={styles.scannerLinkText}>Use camera scanner on this device</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              // TAB 2: LIVE CAMERA SCANNER
               <View style={styles.tabContent}>
+                <TouchableOpacity
+                  style={styles.backToQr}
+                  onPress={() => handleTabChange("show")}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="arrow-back" size={15} color="#FFB899" />
+                  <Text style={styles.backToQrText}>Back to app link</Text>
+                </TouchableOpacity>
+                <Text style={styles.scanTitle}>Scan a mentor QR code</Text>
                 <Text style={styles.instruction}>
                   Point your camera at a Mentor Card or Tribute QR code to open it instantly.
                 </Text>
@@ -463,184 +486,215 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.78)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    padding: 14,
   },
   card: {
-    backgroundColor: "#18181B", // Zinc-900 Dark Surface
-    borderRadius: 24,
+    position: "relative",
+    backgroundColor: "#171717",
+    borderRadius: 28,
     width: "100%",
-    maxWidth: 440,
+    maxWidth: 560,
     maxHeight: "92%",
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#27272A",
-    shadowColor: "#000",
+    borderColor: "#303030",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.5,
     shadowRadius: 32,
     elevation: 12,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272A",
-  },
-  headerTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  brandIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#27272A",
+  closeBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#252525",
     alignItems: "center",
     justifyContent: "center",
   },
-  title: {
-    fontSize: 16,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+  },
+  installContent: {
+    alignItems: "center",
+  },
+  benefitPills: {
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  benefitPill: {
+    overflow: "hidden",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 16,
+    fontSize: 10.5,
     fontWeight: "700",
+    color: "#111111",
+  },
+  benefitPillPeach: {
+    backgroundColor: "#FFB899",
+  },
+  benefitPillPink: {
+    backgroundColor: "#FF9ECF",
+  },
+  benefitPillMint: {
+    backgroundColor: "#8FF0C6",
+  },
+  installTitle: {
+    maxWidth: "100%",
+    marginBottom: 16,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "900",
     color: "#FFFFFF",
+    textAlign: "center",
     letterSpacing: -0.3,
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: "#71717A",
-    marginTop: 1,
+  tabContent: {
+    alignItems: "center",
+    width: "100%",
   },
-  closeBtn: {
-    padding: 6,
-    borderRadius: 8,
+  scanTitle: {
+    width: "100%",
+    marginBottom: 6,
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "800",
   },
-  tabBar: {
+  instruction: {
+    fontSize: 12.5,
+    color: "#A1A1A1",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  qrWrapper: {
+    padding: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    marginBottom: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+  },
+  installSteps: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#121215",
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 16,
+  },
+  installStep: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
-  tab: {
-    flex: 1,
+  stepNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    textAlign: "center",
+    textAlignVertical: "center",
+    overflow: "hidden",
+    fontSize: 12,
+    lineHeight: 26,
+    fontWeight: "800",
+    color: "#111111",
+  },
+  stepNumberMint: {
+    backgroundColor: "#8FF0C6",
+  },
+  stepNumberPink: {
+    backgroundColor: "#FF9ECF",
+  },
+  stepNumberPeach: {
+    backgroundColor: "#FFB899",
+  },
+  stepLabel: {
+    color: "#A1A1A1",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  linkActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  sendLinkBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+  },
+  sendLinkBtnText: {
+    color: "#111111",
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  copyLinkBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: "#171717",
+    borderWidth: 1,
+    borderColor: "#303030",
+  },
+  copyLinkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  actionError: {
+    marginTop: 10,
+    color: "#FFB899",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  scannerLink: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: "#27272A",
+    paddingVertical: 8,
   },
-  tabActive: {
-    backgroundColor: "#FFFFFF",
+  scannerLinkText: {
+    color: "#A1A1A1",
+    fontSize: 10.5,
+    textDecorationLine: "underline",
   },
-  tabText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#A1A1AA",
-  },
-  tabTextActive: {
-    color: "#09090B",
-    fontWeight: "700",
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  tabContent: {
-    alignItems: "center",
-  },
-  instruction: {
-    fontSize: 13,
-    color: "#D4D4D8",
-    textAlign: "center",
-    lineHeight: 19,
-    marginBottom: 16,
-  },
-  brandHighlight: {
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  qrWrapper: {
-    padding: 16,
-    backgroundColor: "#FFFFFF", // High contrast white container
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#E4E4E7",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-  },
-  urlChip: {
+  backToQr: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#27272A",
-    borderRadius: 12,
-    paddingLeft: 12,
-    paddingRight: 6,
-    paddingVertical: 6,
-    width: "100%",
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 18,
   },
-  urlText: {
-    flex: 1,
+  backToQrText: {
+    color: "#FFB899",
     fontSize: 13,
-    color: "#F4F4F5",
-    fontWeight: "500",
-  },
-  copyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  copyBtnText: {
-    fontSize: 12,
     fontWeight: "700",
-    color: "#09090B",
-  },
-  guideContainer: {
-    width: "100%",
-    backgroundColor: "#222225",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#2E2E33",
-  },
-  guideTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#A1A1AA",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    marginTop: 6,
-  },
-  stepIcon: {
-    marginTop: 2,
-  },
-  stepText: {
-    flex: 1,
-    fontSize: 12,
-    color: "#D4D4D8",
-    lineHeight: 18,
   },
   scannerBox: {
     width: "100%",

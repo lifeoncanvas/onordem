@@ -99,6 +99,10 @@ public class AuthService {
         if (userRepository.existsByEmail(email)) {
             throw new BadRequestException("An account with this email already exists");
         }
+        String phone = normalizePhone(request.getPhone());
+        if (phone != null && userProfileRepository.existsByPhone(phone)) {
+            throw new BadRequestException("An account with this phone number already exists");
+        }
 
         String username = request.getUsername();
         if (username == null || username.isBlank()) {
@@ -129,6 +133,7 @@ public class AuthService {
                 .avatarUri(
                         "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80")
                 .coverColor("#54000E")
+                .phone(phone)
                 .build();
         userProfileRepository.save(profile);
 
@@ -147,6 +152,84 @@ public class AuthService {
                 .build();
     }
 
+<<<<<<< HEAD
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
+        String identifier = request.getEmailOrUsername().trim();
+
+        User user = findUserByIdentifier(identifier)
+                .orElseThrow(() -> new UnauthorizedException("Invalid email/username or password"));
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
+        );
+
+        String accessToken = jwtService.generateAccessToken(user, user.getId());
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(userDto)
+                .build();
+    }
+
+    private java.util.Optional<User> findUserByIdentifier(String identifier) {
+        if (isPhoneIdentifier(identifier)) {
+            java.util.Optional<User> phoneUser = userProfileRepository.findByPhone(normalizePhone(identifier))
+                    .map(UserProfile::getUser);
+            if (phoneUser.isPresent()) {
+                return phoneUser;
+            }
+        }
+        String normalizedIdentifier = identifier.toLowerCase();
+        return userRepository.findByEmail(normalizedIdentifier)
+                .or(() -> userRepository.findByUsername(normalizedIdentifier));
+    }
+
+    private boolean isPhoneIdentifier(String identifier) {
+        String trimmed = identifier.trim();
+        int digitCount = trimmed.replaceAll("\\D", "").length();
+        return trimmed.matches("[+0-9().\\s-]+") && digitCount >= 7 && digitCount <= 15;
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String normalized = phone.trim().replaceAll("[^0-9+]", "");
+        if (!normalized.matches("^\\+?\\d{7,15}$")) {
+            throw new BadRequestException("Phone number must include 7 to 15 digits and an optional country-code +");
+        }
+        return normalized;
+    }
+
+    @Transactional(readOnly = true)
+    public AuthResponse refreshToken(RefreshTokenRequest request) {
+        String refreshToken = request.getRefreshToken();
+        String username = jwtService.extractUsername(refreshToken);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+
+        if (!jwtService.isTokenValid(refreshToken, user)) {
+            throw new UnauthorizedException("Expired or invalid refresh token");
+        }
+
+        String newAccessToken = jwtService.generateAccessToken(user, user.getId());
+        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        return AuthResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(refreshToken)
+                .user(userDto)
+                .build();
+    }
+
+=======
+>>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
     @Transactional
     public String requestPasswordReset(ForgotPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
