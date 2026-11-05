@@ -20,16 +20,10 @@ import { memoryService } from "@/services/memoryService";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
 import { tributeDraftService } from "@/services/tributeDraftService";
 import { UserProfile, userProfileService } from "@/services/userProfileService";
-<<<<<<< HEAD
 import { followService } from "@/services/followService";
 import ConnectionsModal from "@/components/profile/ConnectionsModal";
 import VideoUploadModal from "@/components/Create/VideoUploadModal";
-=======
-import { getAllStories, WISDOM_LESSON } from "@/data/mockStories";
-import { signOut } from "@/services/auth";
-import type { LessonQuote, Story } from "@/types/story";
->>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
-import type { WallItem } from "@/types/memoryWall";
+import { signOut } from "@/services/auth";import type { WallItem } from "@/types/memoryWall";
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile>(() =>
@@ -768,9 +762,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: AppFonts.body,
   },
-<<<<<<< HEAD
-});
-=======
   signOutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -789,4 +780,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
->>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e

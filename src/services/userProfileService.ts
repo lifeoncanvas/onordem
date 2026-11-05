@@ -35,17 +35,6 @@ export const userProfileService = {
     if (!initializePromise) {
       initializePromise = (async () => {
         try {
-<<<<<<< HEAD
-          const stored = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
-          if (stored) {
-            const parsed: unknown = JSON.parse(stored);
-            if (isUserProfile(parsed)) {
-              // Discard old hardcoded "Sarita Baiga" placeholder if present
-              if (parsed.name === "Sarita Baiga" || parsed.email === "sarita@example.com") {
-                await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
-              } else {
-                profile = { ...parsed, phone: parsed.phone ?? "" };
-=======
           const token = await getAuthToken().catch(() => null);
           if (!token) {
             // If user is not authenticated, never retain an old session from a previous user
@@ -60,9 +49,8 @@ export const userProfileService = {
                 if (parsed.name === "Sarita Baiga" || parsed.email === "sarita@example.com") {
                   await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
                 } else {
-                  profile = parsed;
+                  profile = { ...parsed, phone: parsed.phone ?? "" };
                 }
->>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
               }
             }
             await this.syncWithBackend().catch(() => {});
