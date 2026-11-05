@@ -35,6 +35,7 @@ export const userProfileService = {
     if (!initializePromise) {
       initializePromise = (async () => {
         try {
+<<<<<<< HEAD
           const stored = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
           if (stored) {
             const parsed: unknown = JSON.parse(stored);
@@ -44,21 +45,30 @@ export const userProfileService = {
                 await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
               } else {
                 profile = { ...parsed, phone: parsed.phone ?? "" };
+=======
+          const token = await getAuthToken().catch(() => null);
+          if (!token) {
+            // If user is not authenticated, never retain an old session from a previous user
+            profile = { ...DEFAULT_PROFILE };
+            await AsyncStorage.removeItem(PROFILE_STORAGE_KEY).catch(() => {});
+          } else {
+            const stored = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
+            if (stored) {
+              const parsed: unknown = JSON.parse(stored);
+              if (isUserProfile(parsed)) {
+                // Discard old hardcoded "Sarita Baiga" placeholder if present
+                if (parsed.name === "Sarita Baiga" || parsed.email === "sarita@example.com") {
+                  await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
+                } else {
+                  profile = parsed;
+                }
+>>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
               }
             }
+            await this.syncWithBackend().catch(() => {});
           }
         } catch (error) {
           console.warn("Failed reading local profile cache:", error);
-        }
-
-        // Attempt background sync with backend if user has an active session
-        try {
-          const token = await getAuthToken();
-          if (token) {
-            await this.syncWithBackend();
-          }
-        } catch {
-          // Non-blocking sync failure
         }
 
         const nextProfile = this.getProfile();
@@ -67,6 +77,15 @@ export const userProfileService = {
       })();
     }
     return initializePromise;
+  },
+
+  async clearProfile(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
+    } catch {}
+    profile = { ...DEFAULT_PROFILE };
+    const cleared = this.getProfile();
+    listeners.forEach((listener) => listener(cleared));
   },
 
   async syncWithBackend(): Promise<UserProfile | null> {

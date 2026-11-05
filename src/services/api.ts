@@ -50,7 +50,11 @@ export async function setAuthToken(token: string, refreshToken?: string): Promis
 }
 
 export async function clearAuthToken(): Promise<void> {
-  await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY]);
+  await AsyncStorage.multiRemove([
+    TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    "@honour-your-mentor/profile",
+  ]);
 }
 
 export async function apiRequest<T = any>(

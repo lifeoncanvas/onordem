@@ -20,9 +20,15 @@ import { memoryService } from "@/services/memoryService";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
 import { tributeDraftService } from "@/services/tributeDraftService";
 import { UserProfile, userProfileService } from "@/services/userProfileService";
+<<<<<<< HEAD
 import { followService } from "@/services/followService";
 import ConnectionsModal from "@/components/profile/ConnectionsModal";
 import VideoUploadModal from "@/components/Create/VideoUploadModal";
+=======
+import { getAllStories, WISDOM_LESSON } from "@/data/mockStories";
+import { signOut } from "@/services/auth";
+import type { LessonQuote, Story } from "@/types/story";
+>>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
 import type { WallItem } from "@/types/memoryWall";
 
 export default function ProfileScreen() {
@@ -343,6 +349,26 @@ export default function ProfileScreen() {
             subtitle="Account, privacy and preferences"
             onPress={() => router.push("/settings")}
           />
+
+          {/* Quick Sign Out Action */}
+          <TouchableOpacity
+            style={styles.signOutBtn}
+            onPress={async () => {
+              try {
+                await signOut();
+                router.replace("/login");
+              } catch (err) {
+                console.warn("Sign out:", err);
+                router.replace("/login");
+              }
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out of account"
+          >
+            <Ionicons name="log-out-outline" size={18} color="#FF6B6B" />
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
 
         {isLoading && (
@@ -742,4 +768,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: AppFonts.body,
   },
+<<<<<<< HEAD
 });
+=======
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 18,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#1C1414",
+    borderWidth: 1,
+    borderColor: "rgba(255, 107, 107, 0.25)",
+  },
+  signOutText: {
+    color: "#FF6B6B",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+});
+>>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
