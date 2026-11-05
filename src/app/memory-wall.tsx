@@ -42,8 +42,9 @@ import { WallCategory, WallFilterTab, WallItem, WallMentorProfile } from "@/type
 
 const CATEGORY_FILTER_TABS: WallFilterTab[] = [
   { key: "all", label: "All" },
+  { key: "letters", label: "Letters" },
+  { key: "memories", label: "Memories" },
   { key: "school", label: "School" },
-  { key: "study", label: "Study" },
   { key: "work", label: "Work" },
   { key: "life", label: "Life" },
 ];
@@ -57,13 +58,15 @@ export default function MemoryWallScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Subscribe to memoryService updates
+  // Subscribe to memoryService updates & sync latest public tributes from backend
   React.useEffect(() => {
     const sync = () => {
       setItems(memoryService.getAllMemories());
       setMentors(memoryService.getAllMentorProfiles());
     };
     sync();
+    // Pull latest community contributions from database
+    memoryService.syncWithBackend().catch(() => {});
     const unsubscribe = memoryService.subscribe(sync);
     return () => {
       unsubscribe();
@@ -267,14 +270,27 @@ export default function MemoryWallScreen() {
         {/* Anniversary Card (Image 2) */}
         <AnniversaryCard onWriteThanksPress={() => router.push("/create")} />
 
-        {/* Filter chips (Image 2) */}
+        {/* Filter chips */}
         <FilterTabs
           tabs={CATEGORY_FILTER_TABS}
           active={activeFilter}
           onSelect={setActiveFilter}
         />
 
-        {/* 2-Column Portrait Mentor Cards Grid (Image 3) */}
+        {/* Section heading: Recent Community Keepsakes & Letters */}
+        <View style={styles.sectionHeadRow}>
+          <Text style={styles.sectionHeadText}>{sectionLabel} Keepsakes & Letters</Text>
+          <Text style={styles.sectionCount}>{filteredItems.length} tributes</Text>
+        </View>
+
+        {/* Items feed (Displayed prominently at the top) */}
+        {filteredItems.length === 0 ? (
+          <WallEmptyState />
+        ) : (
+          filteredItems.map(renderItem)
+        )}
+
+        {/* 2-Column Portrait Mentor Cards Grid */}
         <MentorRoll
           mentors={filteredMentors}
           onMentorPress={handleMentorPress}
@@ -287,19 +303,6 @@ export default function MemoryWallScreen() {
             router.push({ pathname: "/memory-detail/[id]", params: { id } })
           }
         />
-
-        {/* Section heading */}
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHeadText}>{sectionLabel}</Text>
-          <Text style={styles.sectionCount}>{filteredItems.length} items</Text>
-        </View>
-
-        {/* Items feed */}
-        {filteredItems.length === 0 ? (
-          <WallEmptyState />
-        ) : (
-          filteredItems.map(renderItem)
-        )}
 
         {/* Bottom create nudge */}
         {filteredItems.length > 0 && (

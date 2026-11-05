@@ -5,6 +5,7 @@ import { router, usePathname } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useQrModal } from "@/context/QrModalContext";
 import { Palette } from "@/constants/theme";
+import { clearAuthToken } from "@/services/api";
 
 interface ResponsiveHeaderProps {
   onOpenQrModal?: () => void;
@@ -139,6 +140,23 @@ export default function ResponsiveHeader({ onOpenQrModal }: ResponsiveHeaderProp
               >
                 <Ionicons name="person-circle-outline" size={26} color="#FFFFFF" />
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.signOutHeaderBtn}
+                onPress={async () => {
+                  try {
+                    await clearAuthToken();
+                    router.replace("/login");
+                  } catch {
+                    router.replace("/login");
+                  }
+                }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Sign Out"
+              >
+                <Ionicons name="log-out-outline" size={19} color="#FF6B6B" />
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -260,5 +278,14 @@ const styles = StyleSheet.create({
   },
   profileBtn: {
     padding: 2,
+  },
+  signOutHeaderBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#1C1414",
+    borderWidth: 1,
+    borderColor: "rgba(255, 107, 107, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

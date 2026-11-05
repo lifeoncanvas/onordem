@@ -112,6 +112,7 @@ class MemoryService {
         for (const dto of feedRes.data.content) {
           const exists = this.items.some((i) => i.id === dto.id);
           if (!exists) {
+            const storyText = dto.story || dto.excerpt || dto.quote || "";
             const wallItem: WallItem = {
               kind: (dto.kind as any) || "tribute",
               id: dto.id,
@@ -120,9 +121,18 @@ class MemoryService {
               relationship: dto.relationship || "Mentor",
               title: dto.title || `Tribute to ${dto.mentorName}`,
               photoUri: dto.photoUri || "",
-              quote: dto.quote || "",
-              story: dto.story || dto.excerpt || "",
-              excerpt: dto.excerpt || "",
+              imageUri: dto.photoUri || "",
+              quote: dto.quote || storyText,
+              story: storyText,
+              excerpt: dto.excerpt || storyText.slice(0, 180),
+              preview: dto.excerpt || storyText.slice(0, 180) || "A heartfelt tribute dedicated to guidance and wisdom.",
+              letterBody: storyText,
+              salutation: dto.salutation || `Dear ${dto.mentorName},`,
+              signoff: dto.signoff || "With gratitude,",
+              signature: dto.signature || "A Mentee",
+              wordCount: storyText ? storyText.split(/\s+/).filter(Boolean).length : 40,
+              mood: dto.mood || "Grateful",
+              lessonTitle: dto.title || `Lesson from ${dto.mentorName}`,
               lessonCarried: dto.lessonCarried || "",
               momentToRemember: dto.momentToRemember || "",
               year: dto.year || "2024",

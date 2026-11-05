@@ -50,6 +50,7 @@ export default function CreativeVoiceModal({
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [hasRecorded, setHasRecorded] = useState(false);
+  const [isPlayingRecorded, setIsPlayingRecorded] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteQuote, setNoteQuote] = useState("");
   const [mentorEmail, setMentorEmail] = useState("");
@@ -61,6 +62,7 @@ export default function CreativeVoiceModal({
   const mediaRecorderRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordedAudioUrlRef = useRef<string | null>(null);
+  const recordedAudioPlayerRef = useRef<any>(null);
   const timerIntervalRef = useRef<any>(null);
 
   // Bar animations
@@ -69,6 +71,14 @@ export default function CreativeVoiceModal({
     []
   );
   const pulseAnim = useMemo(() => new Animated.Value(1), []);
+
+  const displayTranscript =
+    voiceNote?.description ||
+    voiceNote?.transcript ||
+    voiceNote?.title ||
+    "A voice memo recorded to keep you grounded on the path.";
+
+  const mentorDisplayName = voiceNote?.mentorName || "Your Mentor";
 
   useEffect(() => {
     setActiveTab(initialMode);
@@ -187,6 +197,72 @@ export default function CreativeVoiceModal({
     setHasRecorded(true);
   };
 
+  const togglePlayRecordedAudio = () => {
+    if (!recordedAudioUrlRef.current || Platform.OS !== "web") return;
+
+    if (!recordedAudioPlayerRef.current) {
+      recordedAudioPlayerRef.current = new Audio(recordedAudioUrlRef.current);
+      recordedAudioPlayerRef.current.onended = () => {
+        setIsPlayingRecorded(false);
+      };
+    }
+
+    if (isPlayingRecorded) {
+      recordedAudioPlayerRef.current.pause();
+      setIsPlayingRecorded(false);
+    } else {
+      recordedAudioPlayerRef.current.currentTime = 0;
+      recordedAudioPlayerRef.current.play().then(() => {
+        setIsPlayingRecorded(true);
+      }).catch((e: any) => {
+        console.warn("Audio play error:", e);
+      });
+    }
+  };
+
+  const playMentorVoice = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const cleanText = displayTranscript.replace(/[“”"]/g, "");
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 0.94;
+      utterance.pitch = 1.0;
+      utterance.onend = () => setIsPlaying(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const stopMentorVoice = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  useEffect(() => {
+    if (!visible || activeTab !== "listen") {
+      stopMentorVoice();
+      return;
+    }
+    if (isPlaying) {
+      playMentorVoice();
+    } else {
+      stopMentorVoice();
+    }
+    return () => {
+      stopMentorVoice();
+    };
+  }, [isPlaying, activeTab, visible, displayTranscript]);
+
+  useEffect(() => {
+    if (!visible) {
+      stopMentorVoice();
+      if (recordedAudioPlayerRef.current) {
+        recordedAudioPlayerRef.current.pause();
+        setIsPlayingRecorded(false);
+      }
+    }
+  }, [visible]);
+
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -259,14 +335,6 @@ export default function CreativeVoiceModal({
       setIsSaving(false);
     }
   };
-
-  const displayTranscript =
-    voiceNote?.description ||
-    voiceNote?.transcript ||
-    voiceNote?.title ||
-    "A voice memo recorded to keep you grounded on the path.";
-
-  const mentorDisplayName = voiceNote?.mentorName || "Your Mentor";
 
   return (
     <Modal
@@ -478,6 +546,26 @@ export default function CreativeVoiceModal({
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Play Recorded Audio Preview */}
+            {hasRecorded && (
+              <View style={styles.previewAudioPlayer}>
+                <TouchableOpacity
+                  style={styles.playPreviewBtn}
+                  onPress={togglePlayRecordedAudio}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={isPlayingRecorded ? "pause" : "play"}
+                    size={18}
+                    color="#111111"
+                  />
+                  <Text style={styles.playPreviewText}>
+                    {isPlayingRecorded ? "Pause Preview" : "Listen to Your Recording"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Dedication Form (Visible once recorded) */}
             {hasRecorded && (
@@ -745,6 +833,30 @@ const styles = StyleSheet.create({
   recordBtnText: {
     color: "#FFFFFF",
     fontSize: 15,
+    fontWeight: "800",
+  },
+  previewAudioPlayer: {
+    width: "100%",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  playPreviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Palette.accentMint,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  playPreviewText: {
+    color: "#111111",
+    fontSize: 14,
     fontWeight: "800",
   },
   dedicationBox: {

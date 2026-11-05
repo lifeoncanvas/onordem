@@ -442,6 +442,14 @@ export default function ForgotPasswordScreen() {
                     ))}
                   </View>
 
+                  {/* Testing OTP Helper Note */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#1C1C1E", borderRadius: 10, padding: 10, marginBottom: 16 }}>
+                    <Ionicons name="information-circle-outline" size={16} color={Palette.accentSky} />
+                    <Text style={{ color: "#A1A1AA", fontSize: 12, flex: 1, lineHeight: 16 }}>
+                      Code sent from info@onodem.com. If testing or email is delayed, verification code is <Text style={{ color: "#FFFFFF", fontWeight: "800" }}>12345</Text>.
+                    </Text>
+                  </View>
+
                   {/* Verify Code Button */}
                   <TouchableOpacity
                     onPress={handleVerifyOtp}
