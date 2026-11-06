@@ -17,10 +17,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { persistImageUri } from "@/utils/persistMedia";
 
 import { Palette } from "@/constants/theme";
 import { UserProfile, userProfileService } from "@/services/userProfileService";
-import { api } from "@/services/api";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._]{3,24}$/;
@@ -88,7 +88,7 @@ export default function ProfileEditScreen() {
         quality: 0.85,
       });
       if (!result.canceled && result.assets[0]) {
-        setAvatarUri(result.assets[0].uri);
+        setAvatarUri(await persistImageUri(result.assets[0].uri));
       }
     } catch (error) {
       console.error("Unable to choose profile photo:", error);
@@ -124,13 +124,14 @@ export default function ProfileEditScreen() {
 
       // Also persist to backend if signed in
       try {
-        await api.users.updateMe({
-          name: name.trim(),
-          bio: bio.trim(),
-          avatarUri: avatarUri.trim(),
-        });
-      } catch {
-        // Local profile is updated even if backend is temporarily unreachable
+        await userProfileService.pushToBackend();
+      } catch (error) {
+        // Saved on this device; show why the server refused (e.g. username taken).
+        const message = error instanceof Error ? error.message : "";
+        if (message && !/network|fetch/i.test(message)) {
+          setErrorMessage(message);
+          return;
+        }
       }
 
       router.back();

@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { PEOPLE, PEOPLE_TRIBUTES, type Person } from "@/data/peopleData";
+import type { MemoryData } from "@/components/home/MemoryCard";
 
 export interface UserConnection {
   id: string;
@@ -13,6 +15,8 @@ export interface UserConnection {
 export type FollowUser = UserConnection;
 
 const STORAGE_KEY_FOLLOWING = "@hym_following_ids";
+const STORAGE_KEY_DISMISSED = "@hym_dismissed_suggestions";
+const STORAGE_KEY_EXTRA_PROFILES = "@hym_followed_profiles";
 
 const DEFAULT_FOLLOWERS: UserConnection[] = [
   {
@@ -106,10 +110,38 @@ class FollowService {
   private followers: UserConnection[] = [...DEFAULT_FOLLOWERS];
   private following: UserConnection[] = [...DEFAULT_FOLLOWING];
   private listeners: Array<() => void> = [];
+  private dismissed: Set<string> = new Set();
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
-  async initialize() {
-    if (this.initialized) return;
+  /** Safe to call from many screens at once: storage is loaded only once. */
+  initialize(): Promise<void> {
+    if (!this.initPromise) this.initPromise = this.load();
+    return this.initPromise;
+  }
+
+  isReady(): boolean {
+    return this.initialized;
+  }
+
+  private async load() {
+    try {
+      const dismissedRaw = await AsyncStorage.getItem(STORAGE_KEY_DISMISSED);
+      if (dismissedRaw) this.dismissed = new Set(JSON.parse(dismissedRaw) as string[]);
+    } catch {
+      // non-fatal
+    }
+    try {
+      // Details of followed people who aren't in the built-in directory (e.g. story authors).
+      const extraRaw = await AsyncStorage.getItem(STORAGE_KEY_EXTRA_PROFILES);
+      if (extraRaw) {
+        for (const user of JSON.parse(extraRaw) as UserConnection[]) {
+          if (!this.following.some((f) => f.id === user.id)) this.following.push(user);
+        }
+      }
+    } catch {
+      // non-fatal
+    }
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY_FOLLOWING);
       if (stored) {
@@ -123,6 +155,7 @@ class FollowService {
       DEFAULT_FOLLOWING.forEach((item) => this.followingMap.set(item.id, true));
     }
     this.initialized = true;
+    this.notify();
   }
 
   private async persist() {
@@ -131,6 +164,13 @@ class FollowService {
         .filter(([_, isFollowing]) => isFollowing)
         .map(([id]) => id);
       await AsyncStorage.setItem(STORAGE_KEY_FOLLOWING, JSON.stringify(ids));
+      const extras = this.following.filter(
+        (f) =>
+          this.isFollowing(f.id) &&
+          !DEFAULT_FOLLOWING.some((d) => d.id === f.id) &&
+          !PEOPLE.some((p) => p.id === f.id)
+      );
+      await AsyncStorage.setItem(STORAGE_KEY_EXTRA_PROFILES, JSON.stringify(extras));
     } catch {
       // non-fatal
     }
@@ -170,7 +210,7 @@ class FollowService {
   }
 
   getFollowingCount(): number {
-    return Array.from(this.followingMap.values()).filter(Boolean).length;
+    return this.getFollowing().length;
   }
 
   getFollowers(): UserConnection[] {
@@ -180,8 +220,72 @@ class FollowService {
     }));
   }
 
+  /**
+   * Everyone you follow, rebuilt from the saved ids so people followed in an
+   * earlier session (not just the built-in defaults) still appear after a reload.
+   */
   getFollowing(): UserConnection[] {
-    return this.following.filter((f) => this.isFollowing(f.id));
+    const result: UserConnection[] = [];
+    for (const [id, isFollowing] of this.followingMap) {
+      if (!isFollowing) continue;
+      const known = this.following.find((f) => f.id === id);
+      if (known) {
+        result.push({ ...known, isFollowing: true });
+        continue;
+      }
+      const person = this.getPerson(id);
+      if (person) {
+        result.push({
+          id: person.id,
+          name: person.name,
+          username: person.username,
+          avatar: person.avatar,
+          role: person.role,
+          bio: person.bio,
+          isFollowing: true,
+        });
+      }
+    }
+    return result;
+  }
+
+  // ── People directory ──────────────────────────────────────────────────────
+
+  /** A community member, or anyone in your followers / following lists. */
+  getPerson(id: string): Person | null {
+    const person = PEOPLE.find((p) => p.id === id);
+    if (person) return person;
+    const known = [...this.following, ...this.followers].find((u) => u.id === id);
+    if (!known) return null;
+    return {
+      id: known.id,
+      name: known.name,
+      username: known.username,
+      avatar: known.avatar,
+      role: known.role,
+      bio: known.bio ?? "",
+      followerCount: 0,
+      followingCount: 0,
+    };
+  }
+
+  getPersonTributes(id: string): MemoryData[] {
+    return PEOPLE_TRIBUTES[id] ?? [];
+  }
+
+  /** People you don't follow yet and haven't dismissed. */
+  getSuggestions(limit = 10): Person[] {
+    return PEOPLE.filter((p) => !this.isFollowing(p.id) && !this.dismissed.has(p.id)).slice(0, limit);
+  }
+
+  async dismissSuggestion(id: string): Promise<void> {
+    this.dismissed.add(id);
+    this.notify();
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_DISMISSED, JSON.stringify([...this.dismissed]));
+    } catch {
+      // non-fatal
+    }
   }
 
   subscribe(listener: () => void): () => void {

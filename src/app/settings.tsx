@@ -1,11 +1,18 @@
-import React, { useState } from "react";
+/**
+ * Settings: Appearance (Dark default / Light / Automatic), Language (English default /
+ * Hindi), account preferences, support and account actions.
+ *
+ * Grouped-list layout with checkmark rows for single choices (HIG settings.md /
+ * lists-and-tables.md). All colors are theme tokens and all labels are translated.
+ */
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -16,690 +23,664 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { AppFonts, Palette } from "@/constants/theme";
+import { AppFonts, Layout, Palette, SystemColors, TextStyles, alphaColor } from "@/constants/theme";
 import { deleteAccount, signOut } from "@/services/auth";
+import { themeService, type AppearancePreference } from "@/services/themeService";
+import { LANGUAGES, languageService, useLanguage, useT, type StringKey } from "@/i18n";
 
 type SettingsIcon = keyof typeof Ionicons.glyphMap;
+type ModalId = "privacy" | "notifications" | "autocorrect" | "blocked" | "help";
+
+const APPEARANCES: { id: AppearancePreference; labelKey: StringKey; icon: SettingsIcon }[] = [
+  { id: "dark", labelKey: "settings.appearance.dark", icon: "moon" },
+  { id: "light", labelKey: "settings.appearance.light", icon: "sunny" },
+  { id: "system", labelKey: "settings.appearance.system", icon: "phone-portrait-outline" },
+];
+
+function useAppearancePreference(): AppearancePreference {
+  const [pref, setPref] = useState<AppearancePreference>(() => themeService.getPreference());
+  useEffect(() => {
+    const sync = () => setPref(themeService.getPreference());
+    const unsubscribe = themeService.subscribe(sync);
+    themeService.initialize().then(sync);
+    return unsubscribe;
+  }, []);
+  return pref;
+}
 
 export default function SettingsScreen() {
-  // Modal states for settings
-  const [activeModal, setActiveModal] = useState<
-    "privacy" | "notifications" | "autocorrect" | "blocked" | "help" | null
-  >(null);
+  const t = useT();
+  const language = useLanguage();
+  const appearance = useAppearancePreference();
 
-  // Preference switches
+  const [activeModal, setActiveModal] = useState<ModalId | null>(null);
+
   const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(true);
   const [grammarCheckEnabled, setGrammarCheckEnabled] = useState(true);
   const [writingSuggestionsEnabled, setWritingSuggestionsEnabled] = useState(true);
-
   const [tributeReminders, setTributeReminders] = useState(true);
   const [mentorMilestones, setMentorMilestones] = useState(true);
   const [weeklyReflections, setWeeklyReflections] = useState(false);
-
   const [isProfilePublic, setIsProfilePublic] = useState(true);
   const [allowConnectionsOnly, setAllowConnectionsOnly] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<string[]>(["spammer_bot_99", "unwanted_contact"]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const [blockedUsers, setBlockedUsers] = useState<string[]>([
-    "spammer_bot_99",
-    "unwanted_contact",
-  ]);
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/profile"));
 
-  const confirmSignOut = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out of Honour Your Mentor?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace("/login");
-            } catch {
-              router.replace("/login");
-            }
-          },
-        },
-      ]
-    );
+  const confirmSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+    } catch (err) {
+      console.warn("Sign out error:", err);
+    } finally {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.href = "/login";
+      } else {
+        router.replace("/login");
+      }
+    }
   };
 
   const confirmDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? All your keepsakes, tributes, and profile data will be permanently removed.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete Account",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Final Confirmation",
-              "This action cannot be undone. Confirm permanent account deletion.",
-              [
-                { text: "Keep Account", style: "cancel" },
-                {
-                  text: "Permanently Delete",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      await deleteAccount();
-                      router.replace("/login");
-                    } catch {
-                      router.replace("/login");
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  };
+    const executeDelete = async () => {
+      try {
+        await deleteAccount();
+      } catch (err: any) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.alert(err?.message || "Could not delete account");
+        } else {
+          Alert.alert("Error", err?.message || "Could not delete account");
+        }
+      } finally {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.location.href = "/login";
+        } else {
+          router.replace("/login");
+        }
+      }
+    };
 
-  const handleUnblock = (username: string) => {
-    setBlockedUsers((prev) => prev.filter((u) => u !== username));
-    Alert.alert("User Unblocked", `@${username} has been unblocked.`);
+    if (Platform.OS === "web") {
+      const confirmed =
+        typeof window !== "undefined" && typeof window.confirm === "function"
+          ? window.confirm(t("settings.delete.final"))
+          : true;
+      if (confirmed) {
+        executeDelete();
+      }
+      return;
+    }
+
+    Alert.alert(t("settings.delete"), t("settings.delete.confirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("settings.delete"),
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(t("settings.delete"), t("settings.delete.final"), [
+            { text: t("settings.delete.keep"), style: "cancel" },
+            {
+              text: t("settings.delete.permanent"),
+              style: "destructive",
+              onPress: executeDelete,
+            },
+          ]);
+        },
+      },
+    ]);
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
+      <View style={styles.navBar}>
+        <Pressable
+          onPress={goBack}
+          style={styles.navButton}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={t("nav.back")}
         >
-          <Ionicons name="chevron-back" size={23} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.backButton} />
+          <Ionicons name="chevron-back" size={26} color={SystemColors.blue} />
+        </Pressable>
+        <Text style={styles.navTitle} accessibilityRole="header">
+          {t("settings.title")}
+        </Text>
+        <View style={styles.navButton} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>
-          Customize your experience, privacy, and account security.
+        {/* Appearance */}
+        <Text style={styles.groupTitle}>{t("settings.appearance")}</Text>
+        <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel={t("settings.appearance")}>
+          {APPEARANCES.map((option, index) => (
+            <ChoiceRow
+              key={option.id}
+              icon={option.icon}
+              label={t(option.labelKey)}
+              selected={appearance === option.id}
+              onPress={() => themeService.setPreference(option.id)}
+              last={index === APPEARANCES.length - 1}
+            />
+          ))}
+        </View>
+        <Text style={styles.groupFooter}>
+          {themeService.supportsLiveSwitching()
+            ? t("settings.appearance.footer")
+            : t("settings.appearance.nativeNote")}
         </Text>
 
-        {/* Section 1: Account & Core Preferences */}
-        <Text style={styles.groupTitle}>ACCOUNT & PREFERENCES</Text>
+        {/* Language */}
+        <Text style={styles.groupTitle}>{t("settings.language")}</Text>
+        <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel={t("settings.language")}>
+          {LANGUAGES.map((option, index) => (
+            <ChoiceRow
+              key={option.id}
+              icon="language"
+              label={option.nativeName}
+              detail={option.nativeName === option.englishName ? undefined : option.englishName}
+              selected={language === option.id}
+              onPress={() => languageService.set(option.id)}
+              last={index === LANGUAGES.length - 1}
+            />
+          ))}
+        </View>
+        {language === "hi" ? <Text style={styles.groupFooter}>{t("settings.language.footer")}</Text> : null}
+
+        {/* Account & preferences */}
+        <Text style={[styles.groupTitle, styles.groupTitleSpaced]}>{t("settings.account")}</Text>
         <View style={styles.group}>
           <SettingsRow
             icon="person-circle-outline"
-            iconColor={Palette.accentSky}
-            title="Account Information"
-            subtitle="Name, username, photograph and bio"
+            iconColor={SystemColors.blue}
+            title={t("settings.accountInfo")}
+            subtitle={t("settings.accountInfo.sub")}
             onPress={() => router.push("/profile-edit")}
           />
           <SettingsRow
             icon="shield-checkmark-outline"
-            iconColor={Palette.accentMint}
-            title="Privacy Settings"
-            subtitle="Manage story visibility and profile access"
+            iconColor={SystemColors.green}
+            title={t("settings.privacy")}
+            subtitle={t("settings.privacy.sub")}
             onPress={() => setActiveModal("privacy")}
           />
           <SettingsRow
             icon="notifications-outline"
-            iconColor={Palette.accentPink}
-            title="Notification Preferences"
-            subtitle="Tribute reminders and milestone alerts"
+            iconColor={SystemColors.pink}
+            title={t("settings.notifications")}
+            subtitle={t("settings.notifications.sub")}
             onPress={() => setActiveModal("notifications")}
           />
           <SettingsRow
             icon="color-wand-outline"
-            iconColor={Palette.accentLavender}
-            title="Auto-correction Settings"
-            subtitle="Auto-correct, grammar checks, writing aids"
+            iconColor={SystemColors.indigo}
+            title={t("settings.autocorrect")}
+            subtitle={t("settings.autocorrect.sub")}
             onPress={() => setActiveModal("autocorrect")}
           />
           <SettingsRow
             icon="ban-outline"
-            iconColor={Palette.accentCoral}
-            title="Blocked Users"
-            subtitle={`${blockedUsers.length} blocked profiles`}
+            iconColor={SystemColors.orange}
+            title={t("settings.blocked")}
+            subtitle={t("settings.blocked.sub", { count: blockedUsers.length })}
             onPress={() => setActiveModal("blocked")}
             last
           />
         </View>
 
-        {/* Section 2: Support & Danger Zone */}
-        <Text style={styles.groupTitle}>SUPPORT & ACCOUNT ACTIONS</Text>
+        {/* Support & account actions */}
+        <Text style={[styles.groupTitle, styles.groupTitleSpaced]}>{t("settings.support")}</Text>
         <View style={styles.group}>
           <SettingsRow
             icon="help-circle-outline"
-            iconColor={Palette.accentSky}
-            title="Help and Support"
-            subtitle="FAQs, writing guides, and contact support"
+            iconColor={SystemColors.blue}
+            title={t("settings.help")}
+            subtitle={t("settings.help.sub")}
             onPress={() => setActiveModal("help")}
           />
           <SettingsRow
             icon="log-out-outline"
-            iconColor={Palette.accentCoral}
-            title="Log Out"
-            subtitle="Sign out from this device"
+            iconColor={SystemColors.orange}
+            title={isLoggingOut ? "Logging out..." : t("settings.logOut")}
+            subtitle={t("settings.logOut.sub")}
+            loading={isLoggingOut}
             onPress={confirmSignOut}
           />
           <SettingsRow
             icon="trash-outline"
-            iconColor="#FF4D4D"
-            title="Delete Account"
-            subtitle="Permanently remove your account and data"
-            titleColor="#FF4D4D"
+            iconColor={SystemColors.red}
+            title={t("settings.delete")}
+            subtitle={t("settings.delete.sub")}
+            titleColor={SystemColors.red}
             onPress={confirmDeleteAccount}
             last
           />
         </View>
       </ScrollView>
 
-      {/* ======================================================== */}
-      {/* 1. Privacy Settings Modal                                */}
-      {/* ======================================================== */}
-      <Modal visible={activeModal === "privacy"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Privacy Settings</Text>
-            <Text style={styles.modalSubtitle}>Control who can read your tributes and profile</Text>
+      {/* Privacy */}
+      <SettingsSheet
+        visible={activeModal === "privacy"}
+        title={t("settings.privacy")}
+        subtitle={t("settings.privacy.sub")}
+        onClose={() => setActiveModal(null)}
+        closeLabel={t("common.done")}
+      >
+        <ToggleRow
+          title={t("settings.privacy.public")}
+          subtitle={t("settings.privacy.public.sub")}
+          value={isProfilePublic}
+          onChange={setIsProfilePublic}
+        />
+        <ToggleRow
+          title={t("settings.privacy.connections")}
+          subtitle={t("settings.privacy.connections.sub")}
+          value={allowConnectionsOnly}
+          onChange={setAllowConnectionsOnly}
+          last
+        />
+      </SettingsSheet>
 
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Public Tribute Wall</Text>
-                <Text style={styles.settingItemSub}>Anyone on Honour Your Mentor can read your tributes</Text>
-              </View>
-              <Switch
-                value={isProfilePublic}
-                onValueChange={setIsProfilePublic}
-                trackColor={{ false: "#333333", true: Palette.accentMint }}
-              />
-            </View>
+      {/* Notifications */}
+      <SettingsSheet
+        visible={activeModal === "notifications"}
+        title={t("settings.notifications")}
+        subtitle={t("settings.notifications.sub")}
+        onClose={() => setActiveModal(null)}
+        closeLabel={t("common.done")}
+      >
+        <ToggleRow
+          title={t("settings.notifications.reminders")}
+          subtitle={t("settings.notifications.reminders.sub")}
+          value={tributeReminders}
+          onChange={setTributeReminders}
+        />
+        <ToggleRow
+          title={t("settings.notifications.milestones")}
+          subtitle={t("settings.notifications.milestones.sub")}
+          value={mentorMilestones}
+          onChange={setMentorMilestones}
+        />
+        <ToggleRow
+          title={t("settings.notifications.weekly")}
+          subtitle={t("settings.notifications.weekly.sub")}
+          value={weeklyReflections}
+          onChange={setWeeklyReflections}
+          last
+        />
+      </SettingsSheet>
 
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Connections-Only Stories</Text>
-                <Text style={styles.settingItemSub}>Limit personal notes to people you follow</Text>
-              </View>
-              <Switch
-                value={allowConnectionsOnly}
-                onValueChange={setAllowConnectionsOnly}
-                trackColor={{ false: "#333333", true: Palette.accentSky }}
-              />
-            </View>
+      {/* Writing tools */}
+      <SettingsSheet
+        visible={activeModal === "autocorrect"}
+        title={t("settings.autocorrect")}
+        subtitle={t("settings.autocorrect.sub")}
+        onClose={() => setActiveModal(null)}
+        closeLabel={t("common.done")}
+      >
+        <ToggleRow
+          title={t("settings.autocorrect.autocorrect")}
+          subtitle={t("settings.autocorrect.autocorrect.sub")}
+          value={autoCorrectEnabled}
+          onChange={setAutoCorrectEnabled}
+        />
+        <ToggleRow
+          title={t("settings.autocorrect.grammar")}
+          subtitle={t("settings.autocorrect.grammar.sub")}
+          value={grammarCheckEnabled}
+          onChange={setGrammarCheckEnabled}
+        />
+        <ToggleRow
+          title={t("settings.autocorrect.suggestions")}
+          subtitle={t("settings.autocorrect.suggestions.sub")}
+          value={writingSuggestionsEnabled}
+          onChange={setWritingSuggestionsEnabled}
+          last
+        />
+      </SettingsSheet>
 
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setActiveModal(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Save Preferences</Text>
-            </TouchableOpacity>
+      {/* Blocked users */}
+      <SettingsSheet
+        visible={activeModal === "blocked"}
+        title={t("settings.blocked")}
+        subtitle={t("settings.blocked.sub", { count: blockedUsers.length })}
+        onClose={() => setActiveModal(null)}
+        closeLabel={t("common.done")}
+      >
+        {blockedUsers.length === 0 ? (
+          <View style={styles.emptyBlocked}>
+            <Ionicons name="checkmark-circle-outline" size={36} color={SystemColors.green} />
+            <Text style={styles.emptyBlockedTitle}>{t("settings.blocked.empty.title")}</Text>
+            <Text style={styles.emptyBlockedSub}>{t("settings.blocked.empty.body")}</Text>
           </View>
+        ) : (
+          blockedUsers.map((username, index) => (
+            <View
+              key={username}
+              style={[styles.sheetRow, index === blockedUsers.length - 1 && styles.sheetRowLast]}
+            >
+              <View style={styles.blockedUserMeta}>
+                <Ionicons name="person-circle" size={32} color={SystemColors.secondaryLabel} />
+                <Text style={styles.blockedUsername}>@{username}</Text>
+              </View>
+              <Pressable
+                onPress={() => setBlockedUsers((prev) => prev.filter((u) => u !== username))}
+                style={styles.unblockBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`${t("settings.blocked.unblock")} @${username}`}
+              >
+                <Text style={styles.unblockBtnText}>{t("settings.blocked.unblock")}</Text>
+              </Pressable>
+            </View>
+          ))
+        )}
+      </SettingsSheet>
+
+      {/* Help */}
+      <SettingsSheet
+        visible={activeModal === "help"}
+        title={t("settings.help")}
+        subtitle={t("settings.help.sub")}
+        onClose={() => setActiveModal(null)}
+        closeLabel={t("common.close")}
+      >
+        <View style={styles.helpList}>
+          <HelpCard icon="book-outline" color={SystemColors.blue} title={t("settings.help.guide")} body={t("settings.help.guide.body")} />
+          <HelpCard icon="shield-outline" color={SystemColors.green} title={t("settings.help.safety")} body={t("settings.help.safety.body")} />
+          <HelpCard icon="mail-outline" color={SystemColors.pink} title={t("settings.help.contact")} body="support@honouryourmentor.com" />
         </View>
-      </Modal>
-
-      {/* ======================================================== */}
-      {/* 2. Notification Preferences Modal                        */}
-      {/* ======================================================== */}
-      <Modal visible={activeModal === "notifications"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Notification Preferences</Text>
-            <Text style={styles.modalSubtitle}>Choose which memories and alerts reach you</Text>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Tribute Reminders</Text>
-                <Text style={styles.settingItemSub}>Gentle nudges to celebrate someone meaningful</Text>
-              </View>
-              <Switch
-                value={tributeReminders}
-                onValueChange={setTributeReminders}
-                trackColor={{ false: "#333333", true: Palette.accentPink }}
-              />
-            </View>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Mentor Milestones</Text>
-                <Text style={styles.settingItemSub}>Celebrate anniversary of guidance and lessons</Text>
-              </View>
-              <Switch
-                value={mentorMilestones}
-                onValueChange={setMentorMilestones}
-                trackColor={{ false: "#333333", true: Palette.accentSky }}
-              />
-            </View>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Weekly Reflections</Text>
-                <Text style={styles.settingItemSub}>Weekly digest of wisdom lessons you saved</Text>
-              </View>
-              <Switch
-                value={weeklyReflections}
-                onValueChange={setWeeklyReflections}
-                trackColor={{ false: "#333333", true: Palette.accentMint }}
-              />
-            </View>
-
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setActiveModal(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Save Preferences</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ======================================================== */}
-      {/* 3. Auto-correction Settings Modal                        */}
-      {/* ======================================================== */}
-      <Modal visible={activeModal === "autocorrect"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Auto-correction Settings</Text>
-            <Text style={styles.modalSubtitle}>AI Writing Assistant and Grammar Tools</Text>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Auto-correct: {autoCorrectEnabled ? "ON" : "OFF"}</Text>
-                <Text style={styles.settingItemSub}>Automatically fix common spelling typos</Text>
-              </View>
-              <Switch
-                value={autoCorrectEnabled}
-                onValueChange={setAutoCorrectEnabled}
-                trackColor={{ false: "#333333", true: Palette.accentMint }}
-              />
-            </View>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Grammar Check</Text>
-                <Text style={styles.settingItemSub}>Detect capitalization, punctuation, and phrasing</Text>
-              </View>
-              <Switch
-                value={grammarCheckEnabled}
-                onValueChange={setGrammarCheckEnabled}
-                trackColor={{ false: "#333333", true: Palette.accentSky }}
-              />
-            </View>
-
-            <View style={styles.settingItemRow}>
-              <View style={styles.settingTextCol}>
-                <Text style={styles.settingItemTitle}>Improve My Writing</Text>
-                <Text style={styles.settingItemSub}>Elevate gratitude reflections with heartfelt tone suggestions</Text>
-              </View>
-              <Switch
-                value={writingSuggestionsEnabled}
-                onValueChange={setWritingSuggestionsEnabled}
-                trackColor={{ false: "#333333", true: Palette.accentLavender }}
-              />
-            </View>
-
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setActiveModal(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ======================================================== */}
-      {/* 4. Blocked Users Modal                                   */}
-      {/* ======================================================== */}
-      <Modal visible={activeModal === "blocked"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Blocked Users</Text>
-            <Text style={styles.modalSubtitle}>Accounts you have prevented from interacting with you</Text>
-
-            {blockedUsers.length === 0 ? (
-              <View style={styles.emptyBlocked}>
-                <Ionicons name="checkmark-circle-outline" size={36} color={Palette.accentMint} />
-                <Text style={styles.emptyBlockedTitle}>No Blocked Users</Text>
-                <Text style={styles.emptyBlockedSub}>You haven&apos;t blocked anyone.</Text>
-              </View>
-            ) : (
-              blockedUsers.map((username) => (
-                <View key={username} style={styles.blockedRow}>
-                  <View style={styles.blockedUserMeta}>
-                    <Ionicons name="person-circle" size={32} color={Palette.textSecondary} />
-                    <Text style={styles.blockedUsername}>@{username}</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleUnblock(username)}
-                    style={styles.unblockBtn}
-                  >
-                    <Text style={styles.unblockBtnText}>Unblock</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setActiveModal(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ======================================================== */}
-      {/* 5. Help and Support Modal                                */}
-      {/* ======================================================== */}
-      <Modal visible={activeModal === "help"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Help and Support</Text>
-            <Text style={styles.modalSubtitle}>How can we assist your gratitude journey?</Text>
-
-            <View style={styles.helpList}>
-              <View style={styles.helpCard}>
-                <Ionicons name="book-outline" size={20} color={Palette.accentSky} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.helpCardTitle}>Writing Guide</Text>
-                  <Text style={styles.helpCardText}>Learn tips on framing heartfelt tributes and memories.</Text>
-                </View>
-              </View>
-
-              <View style={styles.helpCard}>
-                <Ionicons name="shield-outline" size={20} color={Palette.accentMint} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.helpCardTitle}>Keepsake Safety</Text>
-                  <Text style={styles.helpCardText}>Your tributes are encrypted and stored safely on this device.</Text>
-                </View>
-              </View>
-
-              <View style={styles.helpCard}>
-                <Ionicons name="mail-outline" size={20} color={Palette.accentPink} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.helpCardTitle}>Contact Team</Text>
-                  <Text style={styles.helpCardText}>support@honouryourmentor.com</Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setActiveModal(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </SettingsSheet>
     </SafeAreaView>
   );
 }
 
-function SettingsRow({
+// ─── Rows ─────────────────────────────────────────────────────────────────────
+
+function ChoiceRow({
   icon,
-  iconColor = "#FFFFFF",
-  title,
-  subtitle,
-  titleColor = "#FFFFFF",
+  label,
+  detail,
+  selected,
   onPress,
-  last = false,
+  last,
 }: {
   icon: SettingsIcon;
-  iconColor?: string;
-  title: string;
-  subtitle: string;
-  titleColor?: string;
+  label: string;
+  detail?: string;
+  selected: boolean;
   onPress: () => void;
   last?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.row, !last && styles.rowBorder]}
       onPress={onPress}
-      activeOpacity={0.75}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${subtitle}`}
+      style={[styles.row, !last && styles.rowBorder]}
+      activeOpacity={0.7}
+      accessibilityRole="radio"
+      accessibilityState={{ selected, checked: selected }}
+      accessibilityLabel={detail ? `${label}, ${detail}` : label}
     >
-      <View style={[styles.iconWrap, { backgroundColor: "rgba(255, 255, 255, 0.05)" }]}>
-        <Ionicons name={icon} size={20} color={iconColor} />
+      <View style={[styles.iconWrap, { backgroundColor: SystemColors.tertiarySystemFill }]}>
+        <Ionicons name={icon} size={18} color={SystemColors.label} />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, { color: titleColor }]}>{title}</Text>
-        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+        <Text style={styles.rowTitle}>{label}</Text>
+        {detail ? <Text style={styles.rowSubtitle}>{detail}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={17} color={Palette.textMuted} />
+      {selected ? <Ionicons name="checkmark" size={20} color={SystemColors.blue} /> : null}
     </TouchableOpacity>
   );
 }
 
+function SettingsRow({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  titleColor,
+  onPress,
+  last = false,
+  loading = false,
+}: {
+  icon: SettingsIcon;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  titleColor?: string;
+  onPress: () => void;
+  last?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.row, !last && styles.rowBorder]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${subtitle}`}
+    >
+      <View style={[styles.iconWrap, { backgroundColor: alphaColor(iconColor, 0.16) }]}>
+        <Ionicons name={icon} size={19} color={iconColor} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, titleColor ? { color: titleColor } : null]}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
+      {loading ? (
+        <ActivityIndicator size="small" color={SystemColors.secondaryLabel} />
+      ) : (
+        <Ionicons name="chevron-forward" size={17} color={SystemColors.tertiaryLabel} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function ToggleRow({
+  title,
+  subtitle,
+  value,
+  onChange,
+  last,
+}: {
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.sheetRow, last && styles.sheetRowLast]}>
+      <View style={styles.settingTextCol}>
+        <Text style={styles.settingItemTitle}>{title}</Text>
+        <Text style={styles.settingItemSub}>{subtitle}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: SystemColors.systemFill, true: SystemColors.green }}
+        accessibilityLabel={title}
+      />
+    </View>
+  );
+}
+
+function HelpCard({ icon, color, title, body }: { icon: SettingsIcon; color: string; title: string; body: string }) {
+  return (
+    <View style={styles.helpCard}>
+      <Ionicons name={icon} size={20} color={color} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.helpCardTitle}>{title}</Text>
+        <Text style={styles.helpCardText}>{body}</Text>
+      </View>
+    </View>
+  );
+}
+
+function SettingsSheet({
+  visible,
+  title,
+  subtitle,
+  onClose,
+  closeLabel,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  closeLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} accessibilityLabel={closeLabel} />
+        <View style={styles.modalSheet} accessibilityViewIsModal>
+          <View style={styles.modalHandle} />
+          <View style={styles.sheetHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle} accessibilityRole="header">
+                {title}
+              </Text>
+              <Text style={styles.modalSubtitle}>{subtitle}</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.sheetDone} accessibilityRole="button">
+              <Text style={styles.sheetDoneText}>{closeLabel}</Text>
+            </Pressable>
+          </View>
+          <View style={styles.sheetGroup}>{children}</View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-  header: {
+  safeArea: { flex: 1, backgroundColor: SystemColors.systemBackground },
+  pressed: { opacity: 0.7 },
+
+  navBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    height: 52,
+    paddingHorizontal: Layout.margin / 2,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    fontFamily: AppFonts.displaySans,
-  },
+  navButton: { width: 64, height: Layout.minTouch, justifyContent: "center", paddingLeft: 4 },
+  navTitle: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.label, flex: 1, textAlign: "center" },
+
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  intro: {
-    fontSize: 13.5,
-    color: Palette.textSecondary,
-    marginBottom: 20,
-    lineHeight: 19,
-    fontFamily: AppFonts.body,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+    paddingHorizontal: Layout.margin,
+    paddingTop: 12,
+    paddingBottom: 48,
   },
   groupTitle: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    color: Palette.textMuted,
-    marginBottom: 10,
+    ...TextStyles.footnote,
     fontFamily: AppFonts.body,
+    color: Palette.textMuted,
+    textTransform: "uppercase",
+    marginLeft: 16,
+    marginBottom: 8,
+  },
+  groupTitleSpaced: { marginTop: 12 },
+  groupFooter: {
+    ...TextStyles.footnote,
+    fontFamily: AppFonts.body,
+    color: Palette.textMuted,
+    marginHorizontal: 16,
+    marginTop: -16,
+    marginBottom: 24,
   },
   group: {
-    backgroundColor: "#161616",
-    borderRadius: 20,
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
     marginBottom: 24,
     overflow: "hidden",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 14,
+    minHeight: 56,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 12,
+    ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : {}),
   },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowText: {
-    flex: 1,
-  },
-  rowTitle: {
-    fontSize: 14.5,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    fontFamily: AppFonts.body,
-  },
-  rowSubtitle: {
-    fontSize: 12,
-    color: Palette.textSecondary,
-    marginTop: 2,
-    fontFamily: AppFonts.body,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
-  },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: SystemColors.separator },
+  iconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  rowText: { flex: 1 },
+  rowTitle: { ...TextStyles.body, fontFamily: AppFonts.body, color: SystemColors.label },
+  rowSubtitle: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 1 },
+
+  modalOverlay: { flex: 1, justifyContent: "flex-end", alignItems: "center" },
+  modalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0, 0, 0, 0.45)" },
   modalSheet: {
-    backgroundColor: "#181818",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
+    width: "100%",
+    maxWidth: 600,
+    backgroundColor: SystemColors.systemBackground,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: Layout.margin,
+    paddingTop: 6,
     paddingBottom: Platform.OS === "ios" ? 36 : 24,
-    borderTopWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    gap: 14,
   },
   modalHandle: {
     width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: SystemColors.tertiaryLabel,
     alignSelf: "center",
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    fontFamily: AppFonts.displaySans,
+  sheetHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  modalTitle: { ...TextStyles.title3, fontFamily: AppFonts.displaySans, color: SystemColors.label },
+  modalSubtitle: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 2 },
+  sheetDone: { minHeight: Layout.minTouch, justifyContent: "center", paddingLeft: 8 },
+  sheetDoneText: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.blue },
+  sheetGroup: {
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
+    paddingHorizontal: 14,
   },
-  modalSubtitle: {
-    fontSize: 12.5,
-    color: Palette.textSecondary,
-    marginBottom: 6,
-    fontFamily: AppFonts.body,
-  },
-  settingItemRow: {
+  sheetRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    minHeight: 56,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: SystemColors.separator,
   },
-  settingTextCol: {
-    flex: 1,
-    marginRight: 16,
-  },
-  settingItemTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    fontFamily: AppFonts.body,
-  },
-  settingItemSub: {
-    fontSize: 12,
-    color: Palette.textSecondary,
-    marginTop: 2,
-    fontFamily: AppFonts.body,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: Palette.accentMint,
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  modalPrimaryBtnText: {
-    fontSize: 14.5,
-    fontWeight: "800",
-    color: "#111111",
-    fontFamily: AppFonts.body,
-  },
-  emptyBlocked: {
-    alignItems: "center",
-    paddingVertical: 20,
-    gap: 6,
-  },
-  emptyBlockedTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  emptyBlockedSub: {
-    fontSize: 12.5,
-    color: Palette.textSecondary,
-  },
-  blockedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
-  },
-  blockedUserMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  blockedUsername: {
-    fontSize: 13.5,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+  sheetRowLast: { borderBottomWidth: 0 },
+  settingTextCol: { flex: 1, marginRight: 16 },
+  settingItemTitle: { ...TextStyles.body, fontFamily: AppFonts.body, color: SystemColors.label },
+  settingItemSub: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 1 },
+
+  emptyBlocked: { alignItems: "center", paddingVertical: 20, gap: 6 },
+  emptyBlockedTitle: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.label },
+  emptyBlockedSub: { ...TextStyles.subheadline, fontFamily: AppFonts.body, color: Palette.textMuted },
+  blockedUserMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
+  blockedUsername: { ...TextStyles.body, fontFamily: AppFonts.body, color: SystemColors.label },
   unblockBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    minHeight: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    justifyContent: "center",
+    backgroundColor: SystemColors.tertiarySystemFill,
   },
-  unblockBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: Palette.accentSky,
-  },
-  helpList: {
-    gap: 10,
-    marginVertical: 4,
-  },
-  helpCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    padding: 12,
-    borderRadius: 14,
-  },
-  helpCardTitle: {
-    fontSize: 13.5,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  helpCardText: {
-    fontSize: 12,
-    color: Palette.textSecondary,
-    marginTop: 2,
-  },
+  unblockBtnText: { ...TextStyles.subheadline, fontFamily: AppFonts.body, fontWeight: "600", color: SystemColors.blue },
+
+  helpList: { gap: 10, paddingVertical: 12 },
+  helpCard: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
+  helpCardTitle: { ...TextStyles.subheadline, fontFamily: AppFonts.body, fontWeight: "600", color: SystemColors.label },
+  helpCardText: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 2 },
 });

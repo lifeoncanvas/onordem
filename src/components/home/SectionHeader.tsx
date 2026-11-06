@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { AppFonts, Palette } from "@/constants/theme";
+import { AppFonts, Layout, SystemColors, TextStyles } from "@/constants/theme";
 
 interface SectionHeaderProps {
   title: string;
@@ -24,7 +24,9 @@ export default function SectionHeader({
     <View style={[styles.container, isDark && styles.containerDark]}>
       <View style={styles.textWrapper}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, isDark && styles.titleDark]}>{title}</Text>
+          <Text style={[styles.title, isDark && styles.titleDark]} accessibilityRole="header">
+            {title}
+          </Text>
           {badge ? (
             <View style={[styles.badge, isDark && styles.badgeDark]}>
               <Text style={[styles.badgeText, isDark && styles.badgeTextDark]}>
@@ -43,17 +45,17 @@ export default function SectionHeader({
       {actionLabel && onActionPress ? (
         <TouchableOpacity
           onPress={onActionPress}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
           style={styles.actionButton}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
         >
           <Text style={[styles.actionText, isDark && styles.actionTextDark]}>
             {actionLabel}
           </Text>
           <Ionicons
             name="chevron-forward"
-            size={14}
-            color={Palette.accentSky}
+            size={16}
+            color={SystemColors.blue}
           />
         </TouchableOpacity>
       ) : null}
@@ -66,15 +68,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    marginTop: 28,
+    paddingHorizontal: Layout.margin,
+    marginBottom: 12,
+    marginTop: 32,
   },
-  containerDark: {
-    paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 14,
-  },
+  containerDark: {},
   textWrapper: {
     flex: 1,
     paddingRight: 12,
@@ -85,60 +83,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: Palette.deepTeal,
-    letterSpacing: -0.3,
+    ...TextStyles.title2,
+    color: SystemColors.label,
     fontFamily: AppFonts.displaySans,
+    flexShrink: 1,
   },
-  titleDark: {
-    color: "#FFFFFF",
-  },
+  titleDark: {},
   badge: {
-    backgroundColor: Palette.mintMist,
+    backgroundColor: SystemColors.tertiarySystemFill,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(236, 143, 62, 0.3)",
+    borderRadius: 999,
   },
-  badgeDark: {
-    backgroundColor: "#1A1A1A",
-    borderColor: "rgba(255, 255, 255, 0.15)",
-  },
+  badgeDark: {},
   badgeText: {
-    color: Palette.oceanTeal,
-    fontSize: 10.5,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    ...TextStyles.caption1,
+    fontWeight: "600",
+    color: SystemColors.secondaryLabel,
     fontFamily: AppFonts.body,
   },
-  badgeTextDark: {
-    color: "#FFFFFF",
-  },
+  badgeTextDark: {},
   subtitle: {
-    fontSize: 13.5,
-    color: Palette.textSecondary,
-    marginTop: 3,
-    fontWeight: "400",
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
+    marginTop: 2,
     fontFamily: AppFonts.body,
   },
-  subtitleDark: {
-    color: "#9CA3AF",
-  },
+  subtitleDark: {},
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    paddingBottom: 2,
+    minHeight: Layout.minTouch,
+    paddingLeft: 8,
   },
   actionText: {
-    fontSize: 13,
-    color: Palette.accentSky,
-    fontWeight: "800",
+    ...TextStyles.body,
+    color: SystemColors.blue,
   },
-  actionTextDark: {
-    color: Palette.accentSky,
-  },
+  actionTextDark: {},
 });

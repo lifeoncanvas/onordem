@@ -15,9 +15,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Palette } from "@/constants/theme";
+import { Palette, SystemColors, TextStyles, Layout } from "@/constants/theme";
 import { api, setAuthToken } from "@/services/api";
 import { userProfileService } from "@/services/userProfileService";
+import { memoryService } from "@/services/memoryService";
 
 export default function Login() {
   const insets = useSafeAreaInsets();
@@ -57,7 +58,10 @@ export default function Login() {
           });
         }
         await userProfileService.syncWithBackend();
-        router.replace("/home");
+        // Load this account's posts (and upload any made offline).
+        memoryService.syncWithBackend().catch(() => {});
+        // Accounts that never finished setup go there first.
+        router.replace(res.data.user && res.data.user.setupComplete === false ? "/profile-setup" : "/home");
       } else {
         router.replace("/home");
       }
@@ -88,9 +92,6 @@ export default function Login() {
     <View style={styles.background}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Fresh Mint Mist Ambient Aura */}
-      <View style={styles.ambientAura} />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboardView}
@@ -118,9 +119,8 @@ export default function Login() {
             </View>
 
             {/* "Welcome Back" */}
-            <Text style={styles.title}>
-              <Text style={styles.welcomeText}>Welcome </Text>
-              <Text style={styles.backText}>Back</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              Welcome Back
             </Text>
 
             {/* Subtitle */}
@@ -133,11 +133,10 @@ export default function Login() {
             <View style={styles.inputCard}>
               <Ionicons
                 name="person"
-                size={20}
-                color={Palette.oceanTeal}
+                size={18}
+                color={SystemColors.secondaryLabel}
                 style={styles.inputLeadingIcon}
               />
-              <View style={styles.inputDivider} />
               <TextInput
                 value={usernameOrEmail}
                 onChangeText={setUsernameOrEmail}
@@ -146,7 +145,12 @@ export default function Login() {
                 style={styles.textInput}
                 autoCapitalize="none"
                 autoCorrect={false}
-                selectionColor={Palette.oceanTeal}
+                autoComplete="username"
+                textContentType="username"
+                keyboardType="email-address"
+                returnKeyType="next"
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Email, username, or phone number"
               />
             </View>
 
@@ -154,11 +158,10 @@ export default function Login() {
             <View style={styles.inputCard}>
               <Ionicons
                 name="lock-closed"
-                size={20}
-                color={Palette.oceanTeal}
+                size={18}
+                color={SystemColors.secondaryLabel}
                 style={styles.inputLeadingIcon}
               />
-              <View style={styles.inputDivider} />
               <TextInput
                 value={password}
                 onChangeText={setPassword}
@@ -168,7 +171,12 @@ export default function Login() {
                 style={styles.textInput}
                 autoCapitalize="none"
                 autoCorrect={false}
-                selectionColor={Palette.oceanTeal}
+                autoComplete="current-password"
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Password"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword((prev) => !prev)}
@@ -179,9 +187,9 @@ export default function Login() {
                 accessibilityLabel={showPassword ? "Hide password" : "Show password"}
               >
                 <Ionicons
-                  name={showPassword ? "eye" : "eye-outline"}
-                  size={22}
-                  color={Palette.turquoise}
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={SystemColors.secondaryLabel}
                 />
               </TouchableOpacity>
             </View>
@@ -189,7 +197,7 @@ export default function Login() {
             {/* Error Message */}
             {errorMessage && (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
+                <Ionicons name="alert-circle" size={16} color={SystemColors.red} />
                 <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
@@ -197,8 +205,9 @@ export default function Login() {
             {/* Password Forgot Link */}
             <TouchableOpacity
               style={styles.forgotPasswordContainer}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
               onPress={() => router.push("/forgot-password")}
+              accessibilityRole="link"
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -207,14 +216,16 @@ export default function Login() {
             <TouchableOpacity
               style={[styles.loginButtonWrapper, loading && { opacity: 0.7 }]}
               onPress={handleLogin}
-              activeOpacity={0.88}
+              activeOpacity={0.7}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityState={{ busy: loading, disabled: loading }}
             >
               <View style={styles.loginButton}>
                 {loading ? (
                   <ActivityIndicator color={Palette.textOnPrimary} size="small" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Login</Text>
+                  <Text style={styles.loginButtonText}>Log In</Text>
                 )}
               </View>
             </TouchableOpacity>
@@ -223,10 +234,12 @@ export default function Login() {
             <View style={styles.registerRow}>
               <Text style={styles.registerPrompt}>Don&apos;t have an account? </Text>
               <TouchableOpacity
-                activeOpacity={0.7}
+                activeOpacity={0.6}
                 onPress={() => router.push("/register")}
+                style={styles.registerTouch}
+                accessibilityRole="link"
               >
-                <Text style={styles.registerLink}>Sign up</Text>
+                <Text style={styles.registerLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -241,179 +254,143 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
-    backgroundColor: Palette.iceWhite, // Ice White background
-  },
-  ambientAura: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 320,
-    backgroundColor: Palette.mintMist,
-    opacity: 0.28,
+    backgroundColor: SystemColors.systemBackground,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingBottom: 28,
+    justifyContent: "center",
+    paddingHorizontal: Layout.marginWide,
   },
 
-  /* Header / Logo */
+  /* Header */
   headerSection: {
     alignItems: "center",
-    marginBottom: 26,
+    marginBottom: 32,
   },
   logoContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   logoImage: {
-    width: 82,
-    height: 84,
+    width: 72,
+    height: 72,
   },
   title: {
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -0.3,
+    ...TextStyles.largeTitle,
+    color: SystemColors.label,
     textAlign: "center",
-    marginBottom: 6,
-  },
-  welcomeText: {
-    color: Palette.cream,
-    fontWeight: "800",
-  },
-  backText: {
-    color: "#FFFFFF",
-    fontWeight: "800",
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14.5,
-    color: Palette.textSecondary,
+    ...TextStyles.body,
+    color: SystemColors.secondaryLabel,
     textAlign: "center",
-    fontWeight: "500",
-    letterSpacing: 0.1,
   },
 
   /* Form */
   formContainer: {
     width: "100%",
-    maxWidth: 390,
+    maxWidth: 400,
     alignSelf: "center",
   },
   inputCard: {
     flexDirection: "row",
     alignItems: "center",
-    height: 56,
-    backgroundColor: Palette.pureWhite, // Pure White input
-    borderRadius: 28,
-    borderWidth: 1.2,
-    borderColor: Palette.borderSubtle,
-    paddingHorizontal: 18,
-    marginBottom: 16,
-    shadowColor: Palette.oceanTeal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    height: Layout.controlHeight,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
+    paddingHorizontal: 14,
+    marginBottom: 12,
   },
   inputLeadingIcon: {
-    marginRight: 2,
-  },
-  inputDivider: {
-    width: 1,
-    height: 22,
-    backgroundColor: "rgba(84, 0, 14, 0.14)",
-    marginHorizontal: 12,
+    width: 22,
+    marginRight: 10,
+    textAlign: "center",
   },
   textInput: {
     flex: 1,
-    color: Palette.deepTeal,
-    fontSize: 15.5,
-    fontWeight: "600",
+    ...TextStyles.body,
+    color: SystemColors.label,
     paddingVertical: 0,
+    height: "100%",
   },
   eyeToggle: {
-    padding: 4,
+    width: Layout.minTouch,
+    height: Layout.minTouch,
+    marginRight: -10,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  /* Error Banner */
+  /* Error */
   errorContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "rgba(255, 107, 107, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 107, 107, 0.35)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    backgroundColor: "rgba(255, 69, 58, 0.15)",
+    borderRadius: Layout.radiusSmall,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   errorText: {
-    color: "#FF8E8E",
-    fontSize: 13,
-    fontWeight: "600",
+    ...TextStyles.footnote,
+    color: SystemColors.label,
     flex: 1,
   },
 
   /* Forgot Password */
   forgotPasswordContainer: {
     alignSelf: "flex-end",
-    marginTop: -2,
-    marginBottom: 24,
-    paddingVertical: 4,
+    minHeight: Layout.minTouch,
+    justifyContent: "center",
+    marginBottom: 12,
   },
   forgotPasswordText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    ...TextStyles.subheadline,
+    color: SystemColors.blue,
   },
 
-  /* Primary Login Button */
+  /* Primary button */
   loginButtonWrapper: {
-    borderRadius: 28,
+    borderRadius: Layout.radiusMedium,
     overflow: "hidden",
-    shadowColor: Palette.oceanTeal,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 6,
   },
   loginButton: {
-    height: 56,
-    backgroundColor: Palette.oceanTeal, // Ocean Teal primary button
-    borderRadius: 28,
+    height: Layout.controlHeight,
+    backgroundColor: SystemColors.label,
+    borderRadius: Layout.radiusMedium,
     justifyContent: "center",
     alignItems: "center",
   },
   loginButtonText: {
+    ...TextStyles.headline,
     color: "#000000",
-    fontSize: 17,
-    fontWeight: "700",
-    letterSpacing: 0.3,
   },
 
-  /* Register link row */
+  /* Register row */
   registerRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 16,
   },
   registerPrompt: {
-    fontSize: 14,
-    color: Palette.textSecondary,
-    fontWeight: "500",
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
+  },
+  registerTouch: {
+    minHeight: Layout.minTouch,
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
   registerLink: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "800",
+    ...TextStyles.subheadline,
+    fontWeight: "600",
+    color: SystemColors.blue,
   },
 });

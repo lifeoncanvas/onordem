@@ -6,6 +6,8 @@
  */
 
 import { api, clearAuthToken } from "./api";
+import { memoryService } from "./memoryService";
+import { userProfileService } from "./userProfileService";
 
 export interface PasswordResetResponse {
   success: boolean;
@@ -20,13 +22,16 @@ export let IS_BACKEND_CONFIGURED = true;
 /**
  * DEMO MODE FLAG:
  * Set to `true` while developing/previewing the Figma flow so you can test all steps
- * (Email -> 5-digit OTP Code "12345" -> Set New Password -> Success Dialog).
+ * (Email -> 5-digit OTP code -> Set New Password -> Success Dialog). Only used when IS_BACKEND_CONFIGURED is false.
  * Set to `false` to verify error handling when no real backend is active.
  */
 export let DEMO_MODE = true;
 
 export async function signOut(): Promise<void> {
   await clearAuthToken();
+  // Forget this account's posts on the device so the next sign-in starts clean.
+  await memoryService.clearUserData();
+  await userProfileService.clearProfile().catch(() => {});
 }
 
 export async function deleteAccount(): Promise<void> {
@@ -95,7 +100,7 @@ export async function verifyResetCode(email: string, code: string): Promise<Pass
 
     await new Promise((resolve) => setTimeout(resolve, 700));
 
-    // In demo mode, accept any 5-digit code or default "12345"
+    // In demo mode (no backend), accept any 5-digit code
     if (DEMO_MODE && code.length !== 5) {
       throw new Error("Please enter a valid 5-digit verification code.");
     }
@@ -112,7 +117,7 @@ export async function verifyResetCode(email: string, code: string): Promise<Pass
 /**
  * 3. Update / Set New Password
  */
-export async function updatePassword(password: string, email = "", code = "12345"): Promise<PasswordResetResponse> {
+export async function updatePassword(password: string, email: string, code: string): Promise<PasswordResetResponse> {
   try {
     if (IS_BACKEND_CONFIGURED) {
       const res = await api.auth.resetPassword(email.trim().toLowerCase(), code.trim(), password);

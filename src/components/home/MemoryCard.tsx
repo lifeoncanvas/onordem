@@ -9,7 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { AppFonts, Palette } from "@/constants/theme";
 
-export type MemoryType = "photo" | "gratitude" | "voice" | "achievement" | "lesson" | "tribute";
+export type MemoryType = "photo" | "gratitude" | "voice" | "achievement" | "lesson" | "tribute" | "video";
 
 export interface MemoryData {
   id: string;
@@ -20,6 +20,15 @@ export interface MemoryData {
   date: string;
   content: string;
   image?: string;
+  /** Extra photos after the cover image. */
+  moreImages?: string[];
+  videoUri?: string;
+  audioUri?: string;
+  audioSeconds?: number;
+  /** ISO timestamp, used to order feeds. */
+  createdAt?: string;
+  /** Who posted it, shown on feed tiles (e.g. "Meera Iyer" or "You"). */
+  byline?: string;
   audioDuration?: string;
   achievementBadge?: string;
   likes: number;
@@ -60,6 +69,8 @@ export default function MemoryCard({
         return { icon: "bookmark" as const, color: Palette.accentSky, bg: Palette.surfaceElevated, label: "Timeless Lesson" };
       case "tribute":
         return { icon: "heart" as const, color: Palette.accentCoral, bg: Palette.surfaceElevated, label: "Appreciation" };
+      case "video":
+        return { icon: "videocam" as const, color: Palette.accentMint, bg: Palette.surfaceElevated, label: "Video" };
     }
   };
 

@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   },
   floatCard: {
     marginBottom: 24,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   cta: {
     borderRadius: 14,
     overflow: "hidden",
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,

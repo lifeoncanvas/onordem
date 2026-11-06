@@ -10,22 +10,26 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import BottomNavigation from "@/components/home/BottomNavigation";
-import { AppFonts, MaxContentWidth, Palette } from "@/constants/theme";
+import { AppFonts, MaxContentWidth, Palette, SystemColors, TextStyles, Layout } from "@/constants/theme";
 import { memoryService } from "@/services/memoryService";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
 import { tributeDraftService } from "@/services/tributeDraftService";
 import { UserProfile, userProfileService } from "@/services/userProfileService";
 import { followService } from "@/services/followService";
-import ConnectionsModal from "@/components/profile/ConnectionsModal";
+import ConnectionsModal, { type ConnectionsTab } from "@/components/profile/ConnectionsModal";
 import VideoUploadModal from "@/components/Create/VideoUploadModal";
-import { signOut } from "@/services/auth";import type { WallItem } from "@/types/memoryWall";
+import { signOut } from "@/services/auth";
+import MemoryCollage from "@/components/home/MemoryCollage";
+import { wallItemToMemory } from "@/services/feedService";
+import type { WallItem } from "@/types/memoryWall";
+import { useT } from "@/i18n";
 
 export default function ProfileScreen() {
+  const t = useT();
   const [profile, setProfile] = useState<UserProfile>(() =>
     userProfileService.getProfile()
   );
@@ -33,11 +37,13 @@ export default function ProfileScreen() {
     memoryService.getUserCreatedItems()
   );
   const [isLoading, setIsLoading] = useState(true);
+  // Falls back to initials if the photo can't load (e.g. an expired browser blob: link).
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Social Connections & Video Modals
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
-  const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
+  const [connectionsTab, setConnectionsTab] = useState<ConnectionsTab>("followers");
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   const [followersCount, setFollowersCount] = useState(0);
@@ -91,44 +97,23 @@ export default function ProfileScreen() {
     };
   }, []);
 
-  const tributes = useMemo(() => {
-    memoryService.getAllMemories();
-    return tributeDraftService
-      .getSavedKeepsakes()
-      .map((keepsake) => {
-        const currentItem = memoryService.getMemoryById(keepsake.id);
-        return {
-          kind: "tribute" as const,
-          id: keepsake.id,
-          mentorName: keepsake.mentorName,
-          relationship: keepsake.relationship,
-          photoUri: keepsake.photoUri,
-          quote: keepsake.quote,
-          title: keepsake.customTitle || `Appreciation for ${keepsake.mentorName}`,
-          story: keepsake.story,
-          createdAt: keepsake.createdAt,
-          templateId: keepsake.templateId,
-          isPinned: currentItem?.isPinned,
-          mentorId: currentItem?.mentorId,
-        };
-      })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [items]);
+  // Everything you have posted, newest first (the same posts your followers see).
+  const myPosts = useMemo(
+    () => items.map(wallItemToMemory).sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? "")),
+    [items]
+  );
 
   const draftsCount = useMemo(() => {
     return tributeDraftService.getDrafts().length;
   }, [items]);
 
-  const openMemory = (item: WallItem) => {
-    router.push({
-      pathname: "/memory-detail/[id]",
-      params: { id: item.id },
-    });
+  const openMemoryById = (id: string) => {
+    router.push({ pathname: "/memory-detail/[id]", params: { id } });
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor={SystemColors.systemBackground} />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
@@ -136,16 +121,16 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={26} color={SystemColors.blue} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerTitle} accessibilityRole="header">{t("profile.title")}</Text>
         <TouchableOpacity
           onPress={() => router.push("/settings")}
           style={styles.headerIcon}
           accessibilityRole="button"
           accessibilityLabel="Open settings"
         >
-          <Ionicons name="settings-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="settings-outline" size={22} color={SystemColors.blue} />
         </TouchableOpacity>
       </View>
 
@@ -155,194 +140,158 @@ export default function ProfileScreen() {
       >
         {loadError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color="#FF6B6B" />
+            <Ionicons name="alert-circle-outline" size={18} color={SystemColors.red} />
             <Text style={styles.errorText}>{loadError}</Text>
           </View>
         )}
 
         {/* ======================================================== */}
-        {/* 1. PROFILE IDENTITY: Photograph, Full Name, Username, Bio*/}
+        {/* 1. IDENTITY: photo, counts, name, bio, actions           */}
         {/* ======================================================== */}
-        <View style={styles.identityCard}>
-          {profile.avatarUri ? (
-            <Image
-              source={{ uri: profile.avatarUri }}
-              style={styles.profileCoverImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.profileCoverFallback}>
-              <Text style={styles.avatarFallback}>{getInitials(profile.name)}</Text>
-            </View>
-          )}
-          <LinearGradient
-            colors={["transparent", "rgba(0, 0, 0, 0.2)", "rgba(0, 0, 0, 0.94)", "#000000"]}
-            locations={[0, 0.35, 0.72, 1]}
-            style={styles.profileCoverGradient}
-            pointerEvents="none"
-          />
+        <View style={styles.igHeader}>
           <TouchableOpacity
             onPress={() => router.push("/profile-edit")}
-            style={styles.editIcon}
+            activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Edit profile photo and information"
+            accessibilityLabel="Change profile photo"
           >
-            <Ionicons name="pencil" size={16} color="#FFFFFF" />
+            {profile.avatarUri && !avatarFailed ? (
+              <Image
+                source={{ uri: profile.avatarUri }}
+                style={styles.igAvatar}
+                resizeMode="cover"
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              <View style={[styles.igAvatar, styles.igAvatarFallback]}>
+                <Text style={styles.igAvatarInitials}>{getInitials(profile.name)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
-          <View style={styles.profileCoverContent}>
-            <Text style={styles.profileName} numberOfLines={1}>
-              {profile.name}
-            </Text>
-            <Text style={styles.username}>@{profile.username}</Text>
-            <Text style={styles.bio} numberOfLines={2}>
-              &ldquo;{profile.bio || "Preserving the wisdom and memories of my greatest mentors."}&rdquo;
-            </Text>
-            <TouchableOpacity
-              style={styles.editProfileButton}
-              onPress={() => router.push("/profile-edit")}
-              activeOpacity={0.82}
-            >
-              <Ionicons name="create-outline" size={14} color="#111111" />
-              <Text style={styles.editProfileText}>Edit profile</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ======================================================== */}
-        {/* 2. YOUR CONNECTIONS: Followers & Following               */}
-        {/* ======================================================== */}
-        <View style={styles.connectionsSection}>
-          <Text style={styles.sectionHeaderTitle}>Your Connections</Text>
-          <View style={styles.connectionsGrid}>
-            <TouchableOpacity
+          <View style={styles.igStats}>
+            <ProfileStat value={myPosts.length} label={myPosts.length === 1 ? t("profile.post") : t("profile.posts")} />
+            <ProfileStat
+              value={followersCount}
+              label={t("profile.followers")}
               onPress={() => {
                 setConnectionsTab("followers");
                 setIsConnectionsOpen(true);
               }}
-              activeOpacity={0.8}
-              style={styles.connectionCard}
-            >
-              <View style={[styles.connectionIconWrap, { backgroundColor: "rgba(143, 211, 255, 0.12)" }]}>
-                <Ionicons name="people" size={18} color={Palette.accentSky} />
-              </View>
-              <View>
-                <Text style={styles.connectionCount}>{followersCount || 128}</Text>
-                <Text style={styles.connectionLabel}>Followers</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Palette.textMuted} style={styles.connChevron} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
+            />
+            <ProfileStat
+              value={followingCount}
+              label={t("profile.following")}
               onPress={() => {
                 setConnectionsTab("following");
                 setIsConnectionsOpen(true);
               }}
-              activeOpacity={0.8}
-              style={styles.connectionCard}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.igName} numberOfLines={1}>
+          {profile.name}
+        </Text>
+        <Text style={styles.igUsername}>@{profile.username}</Text>
+        {profile.bio ? <Text style={styles.igBio}>{profile.bio}</Text> : null}
+
+        <View style={styles.igButtons}>
+          <TouchableOpacity
+            style={styles.igButton}
+            onPress={() => router.push("/profile-edit")}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.igButtonText}>{t("profile.editProfile")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.igButton}
+            onPress={() => router.push("/settings")}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <Ionicons name="settings-outline" size={16} color={SystemColors.label} />
+            <Text style={styles.igButtonText}>{t("profile.settings")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.igIconButton}
+            onPress={() => {
+              setConnectionsTab("suggested");
+              setIsConnectionsOpen(true);
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t("profile.findPeople")}
+          >
+            <Ionicons name="person-add-outline" size={18} color={SystemColors.label} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ======================================================== */}
+        {/* 2. YOUR POSTS                                            */}
+        {/* ======================================================== */}
+        <View style={styles.postsHeader}>
+          <Text style={styles.sectionHeaderTitle}>{t("profile.yourPosts")}</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/upload-memory")}
+            style={styles.quickCreateBtn}
+            accessibilityRole="button"
+            accessibilityLabel="New post"
+          >
+            <Ionicons name="add" size={18} color={SystemColors.blue} />
+            <Text style={styles.quickCreateText}>{t("common.new")}</Text>
+          </TouchableOpacity>
+        </View>
+        {myPosts.length > 0 ? (
+          <View style={styles.postsCollage}>
+            <MemoryCollage memories={myPosts} onOpen={(m) => openMemoryById(m.id)} />
+          </View>
+        ) : (
+          <View style={styles.postsEmpty}>
+            <Ionicons name="images-outline" size={30} color={Palette.textMuted} />
+            <Text style={styles.postsEmptyTitle}>{t("profile.empty.title")}</Text>
+            <Text style={styles.postsEmptyBody}>
+              {t("profile.empty.body")}
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/upload-memory")}
+              style={styles.postsEmptyButton}
+              activeOpacity={0.85}
+              accessibilityRole="button"
             >
-              <View style={[styles.connectionIconWrap, { backgroundColor: "rgba(143, 240, 198, 0.12)" }]}>
-                <Ionicons name="person-add" size={18} color={Palette.accentMint} />
-              </View>
-              <View>
-                <Text style={styles.connectionCount}>{followingCount || 64}</Text>
-                <Text style={styles.connectionLabel}>Following</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Palette.textMuted} style={styles.connChevron} />
+              <Ionicons name="add" size={18} color={SystemColors.inverseLabel} />
+              <Text style={styles.postsEmptyButtonText}>{t("profile.empty.action")}</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* ======================================================== */}
-        {/* 3. YOUR ACTIVITY: Exact User-Requested 6 Categories      */}
-        {/* ======================================================== */}
-        <View style={styles.activitySection}>
-          <View style={styles.activityHeaderRow}>
-            <Text style={styles.sectionHeaderTitle}>Your Activity</Text>
-            <TouchableOpacity onPress={() => router.push("/create")} style={styles.quickCreateBtn}>
-              <Ionicons name="add" size={15} color="#111111" />
-              <Text style={styles.quickCreateText}>Create</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.activityGrid}>
-            {/* 1. Tributes */}
-            <ActivityCard
-              badgeBg={Palette.accentPink}
-              icon="heart"
-              title="Tributes"
-              count={tributes.length || 3}
-              subtitle="Published tributes"
-              onPress={() => router.push("/tributes")}
-            />
-
-            {/* 2. Appreciation Posts */}
-            <ActivityCard
-              badgeBg={Palette.accentMint}
-              icon="sparkles"
-              title="Appreciation Posts"
-              count={items.length || 7}
-              subtitle="Gratitude dedications"
-              onPress={() => router.push("/memory-wall")}
-            />
-
-            {/* 3. Notes */}
-            <ActivityCard
-              badgeBg={Palette.accentLavender}
-              icon="document-text"
-              title="Notes"
-              count={4}
-              subtitle="Stationery & thoughts"
-              onPress={() => router.push({ pathname: "/creation-studio", params: { mode: "note" } })}
-            />
-
-            {/* 4. Letters */}
-            <ActivityCard
-              badgeBg={Palette.accentPeach}
-              icon="mail"
-              title="Letters"
-              count={2}
-              subtitle="Heartfelt messages"
-              onPress={() => router.push({ pathname: "/creation-studio", params: { mode: "letter" } })}
-            />
-
-            {/* 5. Videos */}
-            <ActivityCard
-              badgeBg={Palette.accentSky}
-              icon="videocam"
-              title="Videos"
-              count={1}
-              subtitle="Spoken reflections"
-              onPress={() => setIsVideoModalOpen(true)}
-            />
-
-            {/* 6. Saved Drafts */}
-            <ActivityCard
-              badgeBg="#FDE047"
-              icon="time"
-              title="Saved Drafts"
-              count={draftsCount || 1}
-              subtitle="Works in progress"
-              onPress={() => router.push("/saved-items")}
-            />
-          </View>
-        </View>
+        )}
 
         {/* Bottom Menu Navigation items */}
         <View style={styles.menuCardsContainer}>
+          <View style={styles.menuGroup}>
+          <PastelMenuCard
+            badgeBg={SystemColors.yellow}
+            icon="time"
+            title={draftsCount ? t("profile.draftsCount", { count: draftsCount }) : t("profile.drafts")}
+            subtitle={t("profile.drafts.sub")}
+            onPress={() => router.push("/saved-items")}
+          />
+          <View style={styles.menuSeparator} />
           <PastelMenuCard
             badgeBg={Palette.accentMint}
             icon="bookmark"
-            title="Saved items"
-            subtitle="Stories and wisdom bookmarks"
+            title={t("profile.savedItems")}
+            subtitle={t("profile.savedItems.sub")}
             onPress={() => router.push("/saved-items")}
           />
+          <View style={styles.menuSeparator} />
           <PastelMenuCard
             badgeBg={Palette.accentSky}
             icon="settings-outline"
-            title="Settings"
-            subtitle="Account, privacy and preferences"
+            title={t("profile.settings")}
+            subtitle={t("profile.settings.sub")}
             onPress={() => router.push("/settings")}
           />
+          </View>
 
           {/* Quick Sign Out Action */}
           <TouchableOpacity
@@ -360,13 +309,13 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Sign out of account"
           >
-            <Ionicons name="log-out-outline" size={18} color="#FF6B6B" />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Ionicons name="log-out-outline" size={20} color={SystemColors.red} />
+            <Text style={styles.signOutText}>{t("profile.signOut")}</Text>
           </TouchableOpacity>
         </View>
 
         {isLoading && (
-          <ActivityIndicator color={Palette.accentMint} style={{ marginTop: 20 }} />
+          <ActivityIndicator color={SystemColors.secondaryLabel} style={{ marginTop: 20 }} />
         )}
       </ScrollView>
 
@@ -391,39 +340,38 @@ export default function ProfileScreen() {
   );
 }
 
-function ActivityCard({
-  badgeBg,
-  icon,
-  title,
-  count,
-  subtitle,
+function ProfileStat({
+  value,
+  label,
   onPress,
 }: {
-  badgeBg: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  count: number;
-  subtitle: string;
-  onPress: () => void;
+  value: number;
+  label: string;
+  onPress?: () => void;
 }) {
+  const content = (
+    <>
+      <Text style={styles.igStatValue}>{value}</Text>
+      <Text style={styles.igStatLabel}>{label}</Text>
+    </>
+  );
+  if (!onPress) {
+    return (
+      <View style={styles.igStat} accessible accessibilityLabel={`${value} ${label}`}>
+        {content}
+      </View>
+    );
+  }
   return (
     <TouchableOpacity
-      style={styles.activityCard}
       onPress={onPress}
-      activeOpacity={0.8}
+      style={styles.igStat}
+      activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${count} items. ${subtitle}`}
+      accessibilityLabel={`${value} ${label}`}
+      accessibilityHint={`Shows your ${label.toLowerCase()}`}
     >
-      <View style={styles.activityCardTop}>
-        <View style={[styles.activityIconWrap, { backgroundColor: badgeBg }]}>
-          <Ionicons name={icon} size={16} color="#111111" />
-        </View>
-        <Text style={styles.activityCount}>{count}</Text>
-      </View>
-      <Text style={styles.activityTitle}>{title}</Text>
-      <Text style={styles.activitySub} numberOfLines={1}>
-        {subtitle}
-      </Text>
+      {content}
     </TouchableOpacity>
   );
 }
@@ -449,13 +397,13 @@ function PastelMenuCard({
       accessibilityRole="button"
     >
       <View style={[styles.pastelBadge, { backgroundColor: badgeBg }]}>
-        <Ionicons name={icon} size={18} color="#111111" />
+        <Ionicons name={icon} size={17} color="#000000" />
       </View>
       <View style={styles.pastelCardCopy}>
         <Text style={styles.pastelCardTitle}>{title}</Text>
         <Text style={styles.pastelCardSubtitle}>{subtitle}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={17} color={Palette.textMuted} />
+      <Ionicons name="chevron-forward" size={17} color={SystemColors.tertiaryLabel} />
     </TouchableOpacity>
   );
 }
@@ -471,41 +419,90 @@ function getInitials(name: string): string {
 }
 
 const styles = StyleSheet.create({
+  igHeader: { flexDirection: "row", alignItems: "center", gap: 20, marginTop: 8 },
+  igAvatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: SystemColors.tertiarySystemBackground },
+  igAvatarFallback: { alignItems: "center", justifyContent: "center" },
+  igAvatarInitials: { fontSize: 32, fontWeight: "700", color: SystemColors.secondaryLabel, fontFamily: AppFonts.displaySans },
+  igStats: { flex: 1, flexDirection: "row", justifyContent: "space-around" },
+  igStat: { alignItems: "center", minWidth: 64, minHeight: Layout.minTouch, justifyContent: "center" },
+  igStatValue: { ...TextStyles.title3, fontFamily: AppFonts.displaySans, color: SystemColors.label, fontVariant: ["tabular-nums"] },
+  igStatLabel: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 2 },
+  igName: { ...TextStyles.title2, fontFamily: AppFonts.displaySans, color: SystemColors.label, marginTop: 14 },
+  igUsername: { ...TextStyles.subheadline, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 2 },
+  igBio: { ...TextStyles.body, fontFamily: AppFonts.body, color: SystemColors.label, marginTop: 8 },
+  igButtons: { flexDirection: "row", gap: 8, marginTop: 16, marginBottom: 28 },
+  igButton: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 40,
+    borderRadius: Layout.radiusSmall,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: SystemColors.tertiarySystemBackground,
+  },
+  igButtonText: { ...TextStyles.subheadline, fontFamily: AppFonts.body, fontWeight: "600", color: SystemColors.label },
+  igIconButton: {
+    width: 44,
+    minHeight: 40,
+    borderRadius: Layout.radiusSmall,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: SystemColors.tertiarySystemBackground,
+  },
+  postsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  postsCollage: { marginHorizontal: -Layout.margin, marginBottom: 32 },
+  postsEmpty: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderRadius: 22,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    marginBottom: 32,
+  },
+  postsEmptyTitle: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.label, marginTop: 4 },
+  postsEmptyBody: { ...TextStyles.subheadline, fontFamily: AppFonts.body, color: Palette.textMuted, textAlign: "center" },
+  postsEmptyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    minHeight: Layout.minTouch,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    backgroundColor: SystemColors.label,
+  },
+  postsEmptyButtonText: { ...TextStyles.subheadline, fontFamily: AppFonts.body, fontWeight: "600", color: SystemColors.inverseLabel },
+
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
   },
   header: {
-    height: 56,
-    paddingHorizontal: 16,
+    height: 44,
+    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
   },
   headerIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#161616",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    width: Layout.minTouch,
+    height: Layout.minTouch,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "800",
+    ...TextStyles.headline,
+    color: SystemColors.label,
     fontFamily: AppFonts.displaySans,
   },
   content: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingHorizontal: Layout.margin,
+    paddingTop: 8,
     paddingBottom: 130,
   },
   errorBanner: {
@@ -513,29 +510,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 12,
-    marginBottom: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 107, 107, 0.12)",
+    marginBottom: 16,
+    borderRadius: Layout.radiusSmall,
+    backgroundColor: "rgba(255, 69, 58, 0.15)",
   },
   errorText: {
     flex: 1,
-    color: "#FF6B6B",
-    fontSize: 12,
+    ...TextStyles.footnote,
+    color: SystemColors.label,
   },
   identityCard: {
     height: 320,
     position: "relative",
     overflow: "hidden",
-    borderRadius: 26,
-    backgroundColor: "#161616",
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 4,
-    marginBottom: 22,
+    borderRadius: Layout.radiusXL,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    marginBottom: 32,
   },
   profileCoverImage: {
     ...StyleSheet.absoluteFill,
@@ -544,54 +534,48 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#202020",
+    backgroundColor: SystemColors.tertiarySystemBackground,
   },
   avatarFallback: {
     fontSize: 48,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: "700",
+    color: SystemColors.label,
   },
   profileCoverGradient: {
     ...StyleSheet.absoluteFill,
   },
   editIcon: {
     position: "absolute",
-    top: 14,
-    right: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    top: 12,
+    right: 12,
+    width: Layout.minTouch,
+    height: Layout.minTouch,
+    borderRadius: Layout.minTouch / 2,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   profileCoverContent: {
     position: "absolute",
     left: 20,
     right: 20,
     bottom: 20,
-    gap: 4,
+    gap: 2,
   },
   profileName: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#FFFFFF",
+    ...TextStyles.title1,
+    color: SystemColors.label,
     fontFamily: AppFonts.displaySans,
-    letterSpacing: -0.4,
   },
   username: {
-    fontSize: 13.5,
-    fontWeight: "600",
-    color: Palette.accentSky,
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
     fontFamily: AppFonts.body,
   },
   bio: {
-    fontSize: 13,
-    color: "#D1D5DB",
-    marginTop: 4,
-    lineHeight: 18,
+    ...TextStyles.subheadline,
+    color: "rgba(235, 235, 245, 0.8)",
+    marginTop: 6,
     fontFamily: AppFonts.body,
   },
   editProfileButton: {
@@ -599,27 +583,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SystemColors.label,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 8,
+    minHeight: 36,
+    borderRadius: 18,
+    marginTop: 12,
   },
   editProfileText: {
-    fontSize: 12.5,
-    fontWeight: "800",
-    color: "#111111",
+    ...TextStyles.subheadline,
+    fontWeight: "600",
+    color: "#000000",
     fontFamily: AppFonts.body,
   },
   sectionHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.title3,
+    color: SystemColors.label,
     fontFamily: AppFonts.displaySans,
-    letterSpacing: -0.3,
   },
   connectionsSection: {
-    marginBottom: 22,
+    marginBottom: 32,
   },
   connectionsGrid: {
     flexDirection: "row",
@@ -628,38 +610,50 @@ const styles = StyleSheet.create({
   },
   connectionCard: {
     flex: 1,
-    backgroundColor: "#161616",
-    borderRadius: 18,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
     padding: 14,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    gap: 12,
   },
   connectionIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   connectionCount: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.headline,
+    color: SystemColors.label,
     fontFamily: AppFonts.body,
   },
   connectionLabel: {
-    fontSize: 11.5,
+    ...TextStyles.footnote,
     color: Palette.textSecondary,
     fontFamily: AppFonts.body,
   },
   connChevron: {
     marginLeft: "auto",
   },
+  findPeopleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: Palette.surfaceCard,
+  },
+  findPeopleText: { flex: 1 },
+  findPeopleTitle: { fontSize: 15, fontWeight: "600", color: Palette.textPrimary, fontFamily: AppFonts.body },
+  findPeopleSub: { fontSize: 13, color: Palette.textMuted, marginTop: 2, fontFamily: AppFonts.body },
   activitySection: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   activityHeaderRow: {
     flexDirection: "row",
@@ -670,80 +664,82 @@ const styles = StyleSheet.create({
   quickCreateBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: Palette.accentMint,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
+    gap: 2,
+    minHeight: Layout.minTouch,
+    paddingLeft: 8,
   },
   quickCreateText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#111111",
+    ...TextStyles.body,
+    color: SystemColors.blue,
     fontFamily: AppFonts.body,
   },
   activityGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    justifyContent: "space-between",
+    rowGap: 12,
   },
   activityCard: {
-    width: "48%",
-    backgroundColor: "#161616",
-    borderRadius: 18,
+    width: "48.5%",
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
     padding: 14,
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   activityCardTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   activityIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   activityCount: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#FFFFFF",
+    ...TextStyles.title2,
+    color: SystemColors.label,
     fontFamily: AppFonts.body,
   },
   activityTitle: {
-    fontSize: 13.5,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.subheadline,
+    fontWeight: "600",
+    color: SystemColors.label,
     fontFamily: AppFonts.body,
   },
   activitySub: {
-    fontSize: 11,
+    ...TextStyles.footnote,
     color: Palette.textSecondary,
     marginTop: 2,
     fontFamily: AppFonts.body,
   },
   menuCardsContainer: {
-    gap: 10,
-    marginTop: 6,
+    gap: 24,
+  },
+  menuGroup: {
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
+    overflow: "hidden",
+  },
+  menuSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: SystemColors.separator,
+    marginLeft: 16 + 30 + 12,
   },
   pastelMenuCard: {
-    backgroundColor: "#161616",
-    borderRadius: 18,
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 60,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderWidth: 1.2,
-    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   pastelBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -751,15 +747,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pastelCardTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.body,
+    color: SystemColors.label,
     fontFamily: AppFonts.body,
   },
   pastelCardSubtitle: {
-    fontSize: 11.5,
+    ...TextStyles.footnote,
     color: Palette.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
     fontFamily: AppFonts.body,
   },
   signOutBtn: {
@@ -767,16 +762,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 18,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: "#1C1414",
-    borderWidth: 1,
-    borderColor: "rgba(255, 107, 107, 0.25)",
+    minHeight: Layout.controlHeight,
+    borderRadius: Layout.radiusMedium,
+    backgroundColor: SystemColors.secondarySystemBackground,
   },
   signOutText: {
-    color: "#FF6B6B",
-    fontSize: 14,
-    fontWeight: "700",
+    ...TextStyles.body,
+    color: SystemColors.red,
   },
 });

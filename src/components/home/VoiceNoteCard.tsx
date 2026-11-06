@@ -1,8 +1,9 @@
 import React from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Palette } from "@/constants/theme";
 import AudioPlaybackControls from "./AudioPlaybackControls";
+import DemoWaveformPlayer from "@/components/DemoWaveformPlayer";
 
 export interface VoiceNoteData {
   id: string;
@@ -68,40 +69,8 @@ export default function VoiceNoteCard({ voiceNote }: VoiceNoteCardProps) {
             compact
           />
         ) : (
-          <View style={styles.playerRow}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() =>
-                Alert.alert(
-                  "Audio unavailable",
-                  "This sample voice note has no local audio recording attached."
-                )
-              }
-              style={styles.playButton}
-              accessibilityRole="button"
-              accessibilityLabel={`Play ${voiceNote.title}`}
-            >
-              <Ionicons name="play" size={18} color={Palette.textOnAmber} />
-            </TouchableOpacity>
-
-            <View style={styles.waveformContainer}>
-              {[
-                8, 16, 26, 14, 18, 30, 22, 12, 28, 32, 18, 10, 24, 28, 16, 12,
-                22, 30, 18, 14, 26, 20, 12, 18, 24, 10,
-              ].map((height, idx) => (
-                <View
-                  key={`bar-${idx}`}
-                  style={[
-                    styles.waveformBar,
-                    { height },
-                    idx % 5 === 0 && styles.waveformBarAccent,
-                  ]}
-                />
-              ))}
-            </View>
-
-            <Text style={styles.durationText}>{voiceNote.duration}</Text>
-          </View>
+          // Sample notes have no recording: play the shared demo tribute.
+          <DemoWaveformPlayer ownerId={`voice-note-${voiceNote.id}`} title={voiceNote.title} />
         )}
       </View>
     </View>
@@ -116,7 +85,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.pureWhite,
     borderWidth: 1,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,

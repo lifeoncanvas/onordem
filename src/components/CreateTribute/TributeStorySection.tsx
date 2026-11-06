@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,

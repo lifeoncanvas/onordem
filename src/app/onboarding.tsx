@@ -14,7 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Palette } from "@/constants/theme";
+import { Palette, SystemColors, TextStyles, Layout } from "@/constants/theme";
+import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useQrModal } from "@/context/QrModalContext";
 
@@ -24,6 +25,7 @@ export default function OnboardingScreen() {
 
   const isWideScreen = isMounted && (isDesktop || isTablet);
   const useNative = Platform.OS !== "web";
+  const reduceMotion = useReduceMotion();
 
   // Smooth entrance animation
   const fadeAnim = useMemo(() => new Animated.Value(0), []);
@@ -33,7 +35,12 @@ export default function OnboardingScreen() {
     []
   );
 
+  // Wait until the responsive layout has resolved. The first render uses the mobile layout and
+  // then swaps to the desktop one; unmounting an Animated.View stops its animation, which left
+  // the hero text frozen at opacity 0. Re-running on every layout swap restarts it.
   useEffect(() => {
+    if (!isMounted) return;
+
     const floatAnimations = collageFloat.map((value, index) =>
       Animated.loop(
         Animated.sequence([
@@ -50,25 +57,36 @@ export default function OnboardingScreen() {
         ])
       )
     );
-    floatAnimations.forEach((animation) => animation.start());
+    // Decorative float is skipped when Reduce Motion is on.
+    if (!reduceMotion) floatAnimations.forEach((animation) => animation.start());
 
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 700,
-        useNativeDriver: useNative,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 700,
-        useNativeDriver: useNative,
-      }),
-    ]).start();
+    // With Reduce Motion on, show the copy immediately instead of sliding it in.
+    const entrance = reduceMotion
+      ? null
+      : Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 700,
+            useNativeDriver: useNative,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 700,
+            useNativeDriver: useNative,
+          }),
+        ]);
+    if (entrance) {
+      entrance.start();
+    } else {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+    }
 
     return () => {
       floatAnimations.forEach((animation) => animation.stop());
+      entrance?.stop();
     };
-  }, [collageFloat, fadeAnim, slideAnim, useNative]);
+  }, [collageFloat, fadeAnim, slideAnim, useNative, reduceMotion, isMounted, isWideScreen]);
 
   // Card dimensions
   const cardWidth = isWideScreen
@@ -176,8 +194,8 @@ export default function OnboardingScreen() {
                 ]}
               >
                 <View style={styles.heroBadge}>
-                  <Ionicons name="sparkles" size={13} color="#FFF09A" />
-                  <Text style={styles.heroBadgeText}>HONOUR YOUR MENTORS</Text>
+                  <Ionicons name="sparkles" size={13} color={SystemColors.yellow} />
+                  <Text style={styles.heroBadgeText}>Honour Your Mentors</Text>
                 </View>
 
                 <Text style={styles.desktopMainHeading}>
@@ -195,7 +213,7 @@ export default function OnboardingScreen() {
                 <View style={styles.valueProps}>
                   <View style={styles.propItem}>
                     <View style={styles.propIconBox}>
-                      <Ionicons name="heart-outline" size={16} color="#FF9ECF" />
+                      <Ionicons name="heart-outline" size={16} color={SystemColors.pink} />
                     </View>
                     <View style={styles.propTextCol}>
                       <Text style={styles.propTitle}>Gratitude Tributes</Text>
@@ -205,7 +223,7 @@ export default function OnboardingScreen() {
 
                   <View style={styles.propItem}>
                     <View style={styles.propIconBox}>
-                      <Ionicons name="mic-outline" size={16} color="#8FD3FF" />
+                      <Ionicons name="mic-outline" size={16} color={SystemColors.blue} />
                     </View>
                     <View style={styles.propTextCol}>
                       <Text style={styles.propTitle}>Voice Notes & Lessons</Text>
@@ -215,7 +233,7 @@ export default function OnboardingScreen() {
 
                   <View style={styles.propItem}>
                     <View style={styles.propIconBox}>
-                      <Ionicons name="calendar-outline" size={16} color="#FFF09A" />
+                      <Ionicons name="calendar-outline" size={16} color={SystemColors.yellow} />
                     </View>
                     <View style={styles.propTextCol}>
                       <Text style={styles.propTitle}>Milestones & Reminders</Text>
@@ -231,7 +249,7 @@ export default function OnboardingScreen() {
                     activeOpacity={0.88}
                     onPress={() => router.push("/register")}
                   >
-                    <Text style={styles.desktopPrimaryBtnText}>Get Started — Free</Text>
+                    <Text style={styles.desktopPrimaryBtnText}>Get Started</Text>
                     <Ionicons name="arrow-forward" size={16} color="#000000" />
                   </TouchableOpacity>
 
@@ -252,7 +270,7 @@ export default function OnboardingScreen() {
                 >
                   <Ionicons name="phone-portrait-outline" size={14} color={Palette.textSecondary} />
                   <Text style={styles.desktopQrLinkText}>
-                    Also installable as an app on your phone &bull; Click to scan QR code
+                    Get the app on your phone — Scan QR Code
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -319,8 +337,9 @@ export default function OnboardingScreen() {
 
               <TouchableOpacity
                 style={styles.mobileGetStartedWrapper}
-                activeOpacity={0.88}
+                activeOpacity={0.7}
                 onPress={() => router.push("/register")}
+                accessibilityRole="button"
               >
                 <View style={styles.mobileGetStartedBtn}>
                   <Text style={styles.mobileGetStartedText}>Get Started</Text>
@@ -329,8 +348,13 @@ export default function OnboardingScreen() {
 
               <View style={styles.mobileLoginRow}>
                 <Text style={styles.mobileLoginPrompt}>Already have an account? </Text>
-                <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/login")}>
-                  <Text style={styles.mobileLoginLink}>Log in</Text>
+                <TouchableOpacity
+                  activeOpacity={0.6}
+                  onPress={() => router.push("/login")}
+                  style={styles.mobileLoginTouch}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.mobileLoginLink}>Log In</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -345,11 +369,11 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
     width: "100%",
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
   },
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
   },
 
   /* ========================================================= */
@@ -368,11 +392,11 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   card: {
-    borderRadius: 22,
+    borderRadius: Layout.radiusXL,
     overflow: "hidden",
-    backgroundColor: "#171717",
-    borderWidth: 1.5,
-    borderColor: "#2D2D2D",
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SystemColors.separator,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
@@ -411,35 +435,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     alignSelf: "flex-start",
-    backgroundColor: "#1A1A1A",
-    borderWidth: 1,
-    borderColor: "#333333",
+    backgroundColor: SystemColors.tertiarySystemFill,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
     marginBottom: 20,
   },
   heroBadgeText: {
-    color: "#FFF09A",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.8,
+    ...TextStyles.footnote,
+    fontWeight: "600",
+    color: SystemColors.label,
   },
   desktopMainHeading: {
-    fontSize: 46,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontSize: 48,
+    fontWeight: "700",
+    color: SystemColors.label,
     lineHeight: 54,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
     marginBottom: 16,
   },
   desktopHeadingAccent: {
-    color: "#FFB899",
+    color: SystemColors.secondaryLabel,
   },
   desktopDescription: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: "#B89E99",
+    ...TextStyles.title3,
+    fontWeight: "400",
+    lineHeight: 28,
+    color: SystemColors.secondaryLabel,
     marginBottom: 28,
     maxWidth: 520,
   },
@@ -457,9 +479,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "#1A1A1A",
-    borderWidth: 1,
-    borderColor: "#2E2E2E",
+    backgroundColor: SystemColors.tertiarySystemFill,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
@@ -468,15 +488,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   propTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    ...TextStyles.headline,
+    color: SystemColors.label,
   },
   propDesc: {
-    fontSize: 12.5,
-    color: "#8C7570",
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
     marginTop: 2,
-    lineHeight: 18,
   },
   desktopActionRow: {
     flexDirection: "row",
@@ -488,32 +506,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SystemColors.label,
     paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: "#FFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    minHeight: Layout.controlHeight,
+    borderRadius: Layout.radiusMedium,
   },
   desktopPrimaryBtnText: {
-    fontSize: 15,
-    fontWeight: "700",
+    ...TextStyles.headline,
     color: "#000000",
   },
   desktopSecondaryBtn: {
-    paddingHorizontal: 22,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#333333",
-    backgroundColor: "#141414",
+    paddingHorizontal: 24,
+    minHeight: Layout.controlHeight,
+    justifyContent: "center",
+    borderRadius: Layout.radiusMedium,
+    backgroundColor: SystemColors.tertiarySystemFill,
   },
   desktopSecondaryBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    ...TextStyles.headline,
+    color: SystemColors.label,
   },
   desktopPhoneHint: {
     flexDirection: "row",
@@ -522,19 +533,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   desktopPhoneHintText: {
-    fontSize: 12,
-    color: "#8C7570",
+    ...TextStyles.footnote,
+    color: SystemColors.secondaryLabel,
   },
   desktopQrLink: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     marginTop: 6,
+    minHeight: Layout.minTouch,
   },
   desktopQrLinkText: {
-    fontSize: 12,
-    color: "#8FD3FF",
-    fontWeight: "500",
+    ...TextStyles.footnote,
+    color: SystemColors.blue,
   },
   desktopRightCol: {
     flex: 1,
@@ -581,74 +592,60 @@ const styles = StyleSheet.create({
     height: 120,
   },
   mobileContentArea: {
-    paddingHorizontal: 28,
+    paddingHorizontal: Layout.marginWide,
     alignItems: "center",
     paddingTop: 24,
     paddingBottom: 8,
   },
   mobileTitle: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.largeTitle,
+    color: SystemColors.label,
     textAlign: "center",
-    lineHeight: 44,
-    letterSpacing: -0.6,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   mobileDescBox: {
-    backgroundColor: "#171717",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#2D2D2D",
-    marginBottom: 26,
+    marginBottom: 32,
     alignItems: "center",
   },
   mobileDescText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#B89E99",
+    ...TextStyles.body,
+    color: SystemColors.secondaryLabel,
     textAlign: "center",
-    fontWeight: "500",
   },
   mobileGetStartedWrapper: {
     width: "100%",
-    maxWidth: 360,
-    borderRadius: 28,
+    maxWidth: 400,
+    borderRadius: Layout.radiusMedium,
     overflow: "hidden",
-    shadowColor: "#FFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
   },
   mobileGetStartedBtn: {
-    height: 54,
-    backgroundColor: "#FFFFFF",
+    height: Layout.controlHeight,
+    backgroundColor: SystemColors.label,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 28,
+    borderRadius: Layout.radiusMedium,
   },
   mobileGetStartedText: {
+    ...TextStyles.headline,
     color: "#000000",
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.3,
   },
   mobileLoginRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 22,
+    marginTop: 12,
   },
   mobileLoginPrompt: {
-    fontSize: 14,
+    ...TextStyles.subheadline,
     color: Palette.textSecondary,
-    fontWeight: "500",
+  },
+  mobileLoginTouch: {
+    minHeight: Layout.minTouch,
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
   mobileLoginLink: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "800",
+    ...TextStyles.subheadline,
+    color: SystemColors.blue,
+    fontWeight: "600",
   },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { useFonts } from "expo-font";
 import { Platform, View, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -14,23 +14,34 @@ import { QrModalProvider, useQrModal } from "@/context/QrModalContext";
 import ResponsiveHeader from "@/components/web/ResponsiveHeader";
 import PwaInstallBanner from "@/components/web/PwaInstallBanner";
 import { useResponsive } from "@/hooks/useResponsive";
+import { themeService } from "@/services/themeService";
+import { languageService } from "@/i18n";
+import { SystemColors } from "@/constants/theme";
+
+/** Routes that hide the web header and install banner. */
+const FOCUSED_ROUTES = new Set(["/profile-setup"]);
 
 function LayoutContent() {
   const { isDesktop, isTablet, isWeb, isMounted } = useResponsive();
   const { openQrModal } = useQrModal();
 
+  const pathname = usePathname();
+
   const isWide = isMounted && isWeb && (isDesktop || isTablet);
+  // Focused flows: no site navigation or install banner, so people finish before wandering off.
+  const showWebChrome = isWeb && !FOCUSED_ROUTES.has(pathname);
 
   return (
     <View style={styles.rootWrapper}>
-      {isWeb && <PwaInstallBanner onOpenQrModal={() => openQrModal("https://onodem.com")} />}
-      {isWeb && <ResponsiveHeader onOpenQrModal={() => openQrModal("https://onodem.com")} />}
+      {showWebChrome && <PwaInstallBanner onOpenQrModal={() => openQrModal("https://onodem.com")} />}
+      {showWebChrome && <ResponsiveHeader onOpenQrModal={() => openQrModal("https://onodem.com")} />}
       <View style={[styles.mainShell, isWide && styles.desktopShell]}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
+          <Stack.Screen name="profile-setup" options={{ gestureEnabled: false }} />
           <Stack.Screen name="forgot-password" />
           <Stack.Screen name="home" />
           <Stack.Screen name="profile" />
@@ -54,6 +65,8 @@ function LayoutContent() {
           <Stack.Screen name="memory-detail/[id]" />
           <Stack.Screen name="mentor-profile/[id]" />
           <Stack.Screen name="stories/[id]" />
+          <Stack.Screen name="people/[id]" />
+          <Stack.Screen name="upload-memory" options={{ presentation: "modal" }} />
         </Stack>
       </View>
     </View>
@@ -66,6 +79,9 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Appearance + language first, so the app paints in the saved theme.
+    themeService.initialize();
+    languageService.initialize();
     Promise.all([
       memoryService.initialize(),
       creationDraftService.initialize(),
@@ -97,17 +113,17 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   rootWrapper: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
   },
   mainShell: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
   },
   desktopShell: {
     maxWidth: 1240,
     width: "100%",
     marginHorizontal: "auto",
-    backgroundColor: "#000000",
+    backgroundColor: SystemColors.systemBackground,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

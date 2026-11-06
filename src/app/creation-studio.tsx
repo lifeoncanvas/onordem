@@ -18,13 +18,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { persistImageUri } from "@/utils/persistMedia";
 import { router, useLocalSearchParams } from "expo-router";
 import { AppFonts, Palette } from "@/constants/theme";
 import BottomNavigation from "@/components/home/BottomNavigation";
 import { creationDraftService } from "@/services/creationDraftService";
 import { memoryService } from "@/services/memoryService";
 import { userProfileService } from "@/services/userProfileService";
-import { api } from "@/services/api";
 import type { CreationDraft, CreationFormState } from "@/types/create";
 
 type StudioType = "memory" | "lesson" | "letter";
@@ -35,11 +35,17 @@ const NOTE_LAYOUTS = [
   { id: "minimal", label: "Minimal", icon: "remove-outline" },
 ] as const;
 
+/**
+ * Letter paper tones, tuned for dark mode: each paper is a deep tinted surface
+ * rather than bright stationery, so the letter doesn't glare against the black UI.
+ * Contrast (ink / placeholder on paper): Ivory 14.6:1 / 6.4:1, Blush 14.0:1 / 6.3:1,
+ * Sage 13.9:1 / 6.4:1, Midnight 18.0:1 / 5.6:1 — all above the 4.5:1 minimum.
+ */
 const LETTER_PAPERS = [
-  { id: "ivory", label: "Ivory", color: "#FAF6EE", ink: "#241C15", accent: "#C89D66", placeholder: "#8F8175" },
-  { id: "rose", label: "Blush", color: "#F9EFEF", ink: "#382027", accent: "#D87D9A", placeholder: "#9C7C85" },
-  { id: "sage", label: "Sage", color: "#EFF3EB", ink: "#1E2C22", accent: "#6FA37D", placeholder: "#7B8F80" },
-  { id: "midnight", label: "Midnight", color: "#161616", ink: "#FFFFFF", accent: "#8FD3FF", placeholder: "#777777" },
+  { id: "ivory", label: "Ivory", color: "#26221C", ink: "#F3EBDC", accent: "#D9B47C", placeholder: "#AFA391" },
+  { id: "rose", label: "Blush", color: "#2A1F24", ink: "#F6E7EC", accent: "#E79AB3", placeholder: "#B8A0A8" },
+  { id: "sage", label: "Sage", color: "#1E2621", ink: "#E5EFE7", accent: "#8CC59A", placeholder: "#9DAEA1" },
+  { id: "midnight", label: "Midnight", color: "#11131A", ink: "#FFFFFF", accent: "#8FD3FF", placeholder: "#8E93A1" },
 ] as const;
 
 const NOTE_STICKERS = ["✦", "❀", "♡", "☼", "☕", "🌿"];
@@ -246,7 +252,7 @@ export default function CreationStudioScreen({
         quality: 0.82,
       });
       if (!result.canceled && result.assets[0]?.uri) {
-        setPhotoUri(result.assets[0].uri);
+        setPhotoUri(await persistImageUri(result.assets[0].uri));
       }
     } catch (error) {
       console.error("Unable to select an attachment:", error);
@@ -283,6 +289,7 @@ export default function CreationStudioScreen({
         signature: effectiveSig,
         salutation: greeting.trim() || undefined,
         signoff: closing.trim() || undefined,
+        privacy: (isSharedOnFeed ? "PUBLIC" : "PRIVATE") as "PUBLIC" | "PRIVATE",
       };
 
       if (type === "memory") {
@@ -355,28 +362,7 @@ export default function CreationStudioScreen({
         console.error("Unable to remove the completed creation draft:", error);
       }
 
-      // Sync with backend
-      try {
-        await api.tributes.create({
-          mentorName: mentorName.trim(),
-          kind: type,
-          title: title.trim() || (type === "letter" ? `A Letter to ${mentorName.trim()}` : "A Moment of Gratitude"),
-          relationship: effectiveRelationship,
-          story: body.trim(),
-          excerpt: body.trim().slice(0, 200),
-          quote: quote.trim() || undefined,
-          salutation: greeting.trim() || undefined,
-          signoff: closing.trim() || undefined,
-          signature: signature.trim() || userProfileService.getProfile().name,
-          photoUri: photoUri || undefined,
-          recipientEmail: mentorEmail.trim() || undefined,
-          sendDedicationEmail: sendDedicationEmail && !!mentorEmail.trim(),
-          isShared: isSharedOnFeed,
-          privacy: isSharedOnFeed ? "PUBLIC" : "PRIVATE",
-        });
-      } catch (backendErr) {
-        console.warn("Backend tribute sync:", backendErr);
-      }
+      // Saved to the backend by memoryService.addMemory (uploads media first).
 
       const alertMsg = mentorEmail.trim() && sendDedicationEmail
         ? `Your post has been published and dedicated! We sent an email notification to ${mentorEmail.trim()} with the website link so your mentor can view it.`
@@ -912,20 +898,28 @@ function LetterEditor(props: LetterEditorProps) {
       <Text style={styles.sectionHeading}>Set the Tone of Your Letter</Text>
 
       {/* Stationery Paper Tone Selector */}
-      <View style={styles.choiceRow}>
-        {LETTER_PAPERS.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => props.onPaperChange(item.id)}
-            style={[
-              styles.paperToneChoice,
-              { backgroundColor: item.color },
-              props.paperStyle === item.id && { borderColor: props.accent, borderWidth: 2 },
-            ]}
-          >
-            <Text style={[styles.paperToneText, { color: item.ink }]}>{item.label}</Text>
-          </Pressable>
-        ))}
+      <View style={styles.choiceRow} accessibilityRole="radiogroup" accessibilityLabel="Paper tone">
+        {LETTER_PAPERS.map((item) => {
+          const selected = props.paperStyle === item.id;
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => props.onPaperChange(item.id)}
+              style={[
+                styles.paperToneChoice,
+                styles.paperToneChoiceRow,
+                { backgroundColor: item.color, borderColor: selected ? item.accent : `${item.accent}33` },
+                selected && { borderWidth: 2 },
+              ]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, checked: selected }}
+              accessibilityLabel={`${item.label} paper`}
+            >
+              <View style={[styles.paperToneDot, { backgroundColor: item.accent }]} />
+              <Text style={[styles.paperToneText, { color: item.ink }]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Keepsake Envelope / Wax Seal Toggle */}
@@ -1451,8 +1445,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.12)",
   },
+  paperToneChoiceRow: {
+    flexDirection: "row",
+    gap: 6,
+    height: 44,
+  },
+  paperToneDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   paperToneText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "700",
   },
   waxSealPill: {

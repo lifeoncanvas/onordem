@@ -301,17 +301,19 @@ export default function CreateScreen() {
           {/* Quick Action: Video Keepsake Upload / Record */}
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
             <TouchableOpacity
-              onPress={() => setIsVideoModalOpen(true)}
+              onPress={() => router.push("/upload-memory")}
               activeOpacity={0.85}
               style={styles.videoUploadBanner}
+              accessibilityRole="button"
+              accessibilityLabel="Upload photos, videos and audio"
             >
               <View style={styles.videoBannerLeft}>
                 <View style={styles.videoIconCircle}>
-                  <Ionicons name="videocam" size={20} color={Palette.accentSky} />
+                  <Ionicons name="images" size={20} color={Palette.accentSky} />
                 </View>
-                <View>
-                  <Text style={styles.videoBannerTitle}>Upload or Record a Video</Text>
-                  <Text style={styles.videoBannerSub}>Record spoken reflections or upload from gallery</Text>
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={styles.videoBannerTitle}>Photos, Videos &amp; Audio</Text>
+                  <Text style={styles.videoBannerSub}>Upload from your library or record a voice note</Text>
                 </View>
               </View>
               <Ionicons name="arrow-forward" size={16} color={Palette.accentSky} />
@@ -417,7 +419,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

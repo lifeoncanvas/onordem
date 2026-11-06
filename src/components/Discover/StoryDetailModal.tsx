@@ -12,6 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Palette } from "@/constants/theme";
 import { Story } from "@/types/story";
+import FollowButton from "@/components/FollowButton";
+import { storyAuthorTarget } from "@/utils/followTargets";
 
 interface StoryDetailModalProps {
   visible: boolean;
@@ -106,8 +108,11 @@ export default function StoryDetailModal({
 
           {/* Author Byline */}
           <View style={styles.bylineWrap}>
-            <Text style={styles.bylineText}>{story.author}</Text>
-            <Text style={styles.bylineDate}>• In Honour Your Mentor Journal</Text>
+            <View style={styles.bylineNames}>
+              <Text style={styles.bylineText}>{story.author}</Text>
+              <Text style={styles.bylineDate}>• In Honour Your Mentor Journal</Text>
+            </View>
+            <FollowButton person={storyAuthorTarget(story)} size="small" />
           </View>
 
           {/* Pull Excerpt */}
@@ -243,7 +248,15 @@ const styles = StyleSheet.create({
   bylineWrap: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 18,
+  },
+  bylineNames: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
   },
   bylineText: {
     fontSize: 13,
@@ -313,7 +326,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
@@ -341,7 +354,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,

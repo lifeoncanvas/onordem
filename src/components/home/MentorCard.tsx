@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { AppFonts, getCategoryAccent, Palette } from "@/constants/theme";
+import { AppFonts, getCategoryAccent, Palette, SystemColors } from "@/constants/theme";
 
 export interface MentorData {
   id: string;
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: SystemColors.hairline,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -406,16 +406,16 @@ const styles = StyleSheet.create({
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "#181818",
+    backgroundColor: SystemColors.tertiarySystemBackground,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderColor: SystemColors.hairline,
   },
   avatarInitials: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: SystemColors.label,
     letterSpacing: -0.5,
   },
 
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18.5,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: SystemColors.label,
     letterSpacing: -0.3,
     textAlign: "center",
     fontFamily: AppFonts.displaySerif,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#9CA3AF", // Soft light grey supporting information
+    color: Palette.textMuted,
     letterSpacing: 1.2,
     textAlign: "center",
     textTransform: "uppercase",
@@ -449,31 +449,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#1E1E1E", // Dark layer
+    backgroundColor: SystemColors.tertiarySystemFill,
     borderRadius: 20,
     paddingHorizontal: 11,
     paddingVertical: 5,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: SystemColors.hairline,
   },
   traitText: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#E5E5E5",
+    color: SystemColors.label,
   },
 
   /* Lesson block */
   lessonBlock: {
     width: "100%",
-    backgroundColor: "#1B1B1B", // Dark grey surface
+    backgroundColor: SystemColors.secondarySystemBackground,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: SystemColors.hairline,
   },
   lessonHeaderRow: {
     flexDirection: "row",
@@ -490,14 +490,14 @@ const styles = StyleSheet.create({
   lessonLabel: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#A3A3A3",
+    color: Palette.textMuted,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   lessonText: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#E5E5E5",
+    color: SystemColors.label,
     fontStyle: "italic",
     fontFamily: AppFonts.displaySerif,
   },
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
   divider: {
     width: "100%",
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.08)", // Thin divider
+    backgroundColor: SystemColors.separator,
     marginBottom: 10,
   },
   memoryRow: {
@@ -525,12 +525,12 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: "#141414",
+    borderColor: SystemColors.systemBackground,
   },
   memoryCount: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#FFFFFF", // Clearly visible against the dark background
+    color: SystemColors.label,
     letterSpacing: 0.2,
   },
   ctaBtn: {
@@ -539,15 +539,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     width: "100%",
-    backgroundColor: "#1F1F1F", // Subtle dark button surface
+    backgroundColor: SystemColors.secondarySystemBackground,
     borderRadius: 14,
     paddingVertical: 9,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
+    borderColor: SystemColors.hairline,
   },
   ctaText: {
     fontSize: 12.5,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: SystemColors.label,
   },
 });

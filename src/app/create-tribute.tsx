@@ -1,3 +1,11 @@
+/**
+ * Appreciation card — step 1 (content). Step 2 is /tribute-design.
+ *
+ * Layout: nav bar (Back · Appreciation · Save Draft) → live card preview that fills
+ * in as you type (the screen's signature element; tapping it adds a photo) →
+ * "Who are you celebrating?" → "Their story" with prompt chips → pinned
+ * "Continue to Design". The tab bar is hidden: this is a focused writing task.
+ */
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -5,38 +13,37 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { persistImageUri } from "@/utils/persistMedia";
 
 // Design System
-import { Palette } from "@/constants/theme";
+import { AppFonts, Layout, Palette, SystemColors, TextStyles } from "@/constants/theme";
 
-// Create Tribute Editorial Components
-import {
-  TributeDesignFooter,
-  TributeHeader,
-  TributeHeroEditorial,
-  TributeInspirationCards,
-  TributeMiniPreview,
-  TributePersonSection,
-  TributePhotoPicker,
-  TributeStorySection,
-} from "@/components/CreateTribute";
-import BottomNavigation from "@/components/home/BottomNavigation";
+import AppreciationCardPreview from "@/components/CreateTribute/AppreciationCardPreview";
 
 // Types, Data & Services
 import { TributePayload, TributeRelationship } from "@/types/create";
 import {
   DEFAULT_SAMPLE_PORTRAIT,
   INSPIRATION_STORY_CARDS,
+  TRIBUTE_RELATIONSHIPS,
 } from "@/data/tributeDetailsData";
 import { tributeDraftService } from "@/services/tributeDraftService";
+
+const CONTENT_MAX_WIDTH = 640;
+const STORY_MAX = 2000;
+const ACCENT = SystemColors.pink;
 
 export default function CreateTributeScreen() {
   const params = useLocalSearchParams<{
@@ -70,13 +77,14 @@ export default function CreateTributeScreen() {
       (params.promptQuestion ? `${params.promptQuestion}\n\n` : "")
   );
 
-  // Photo state
+  // Photo state. The sample portrait from older drafts counts as "no photo" in the preview.
   const [photoUri, setPhotoUri] = useState<string | null>(
-    savedDraft?.payload.photoUri || null
+    savedDraft?.payload.isCustomPhoto ? savedDraft.payload.photoUri || null : null
   );
   const [isCustomPhoto, setIsCustomPhoto] = useState(
     savedDraft?.payload.isCustomPhoto ?? false
   );
+  const [loadingPhoto, setLoadingPhoto] = useState(false);
 
   // Active Inspiration Card / Prompt tracking
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -84,7 +92,7 @@ export default function CreateTributeScreen() {
     savedDraft?.payload.inspirationPrompt || params.promptQuestion || null
   );
 
-  // Validation Error Banner state
+  // Validation Error state
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Smooth entrance animation
@@ -93,8 +101,8 @@ export default function CreateTributeScreen() {
   React.useEffect(() => {
     Animated.timing(entranceFade, {
       toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
+      duration: 300,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
   }, [entranceFade]);
 
@@ -113,7 +121,7 @@ export default function CreateTributeScreen() {
           setMentorName(draft.payload.mentorName);
           setRelationship(toTributeRelationship(draft.payload.relationship));
           setStory(draft.payload.story);
-          setPhotoUri(draft.payload.photoUri || null);
+          setPhotoUri(draft.payload.isCustomPhoto ? draft.payload.photoUri || null : null);
           setIsCustomPhoto(draft.payload.isCustomPhoto);
           setActivePromptText(draft.payload.inspirationPrompt || null);
           setSelectedCardId(null);
@@ -138,10 +146,25 @@ export default function CreateTributeScreen() {
     };
   }, [params.draftId]);
 
-  // Handle Photo Picker selection
-  const handlePhotoSelected = (uri: string, isCustom: boolean) => {
-    setPhotoUri(uri);
-    setIsCustomPhoto(isCustom);
+  // Photo: called straight from the tap (mobile browsers block pickers opened later).
+  const handlePickPhoto = async () => {
+    setLoadingPhoto(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPhotoUri(await persistImageUri(result.assets[0].uri));
+        setIsCustomPhoto(true);
+      }
+    } catch {
+      Alert.alert("Couldn't open your photos", "Please try again.");
+    } finally {
+      setLoadingPhoto(false);
+    }
   };
 
   const handlePhotoRemoved = () => {
@@ -149,12 +172,11 @@ export default function CreateTributeScreen() {
     setIsCustomPhoto(false);
   };
 
-  // Handle Inspiration Card tap: injects prompt into the story area
+  // Inspiration prompt tap: adds the question to the story to write under.
   const handleSelectInspiration = (promptText: string, cardId: string) => {
     setSelectedCardId(cardId);
     setActivePromptText(promptText);
 
-    // If story is currently empty, initialize with prompt text
     if (!story.trim()) {
       setStory(promptText + "\n\n");
     } else if (!story.includes(promptText)) {
@@ -201,6 +223,8 @@ export default function CreateTributeScreen() {
     tributeId,
   ]);
 
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+
   const handleSaveDraft = async () => {
     const payload = buildPayload();
     try {
@@ -210,22 +234,29 @@ export default function CreateTributeScreen() {
           ? tributeDraftService.getDesignState()
           : null
       );
-      Alert.alert("Draft Saved", "Your appreciation card and photo have been saved in your studio.");
+      // Feedback in the interface, not an alert (HIG feedback.md).
+      setDraftSavedAt(Date.now());
     } catch (error) {
       console.error("Unable to save tribute draft:", error);
       Alert.alert("Could not save draft", "Please check device storage and try again.");
     }
   };
 
+  React.useEffect(() => {
+    if (draftSavedAt === null) return;
+    const t = setTimeout(() => setDraftSavedAt(null), 2000);
+    return () => clearTimeout(t);
+  }, [draftSavedAt]);
+
   // Handle "Continue to Design" submission & validation
   const handleContinueToDesign = async () => {
     if (!mentorName.trim()) {
-      setValidationError("Please enter the name of the person you are celebrating.");
+      setValidationError("Add the name of the person you're celebrating.");
       return;
     }
 
     if (!story.trim()) {
-      setValidationError("Please write a memory or lesson to cherish.");
+      setValidationError("Write a memory or a lesson they gave you.");
       return;
     }
 
@@ -247,7 +278,6 @@ export default function CreateTributeScreen() {
       return;
     }
 
-    // Navigate to Tribute Design Studio screen with parameters
     router.push({
       pathname: "/tribute-design",
       params: {
@@ -260,134 +290,202 @@ export default function CreateTributeScreen() {
     });
   };
 
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/create"));
+
   if (!isHydrated) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <StatusBar barStyle="light-content" backgroundColor={Palette.iceWhite} />
-        <View style={[styles.mainContainer, { alignItems: "center", justifyContent: "center" }]}>
-          <ActivityIndicator color={Palette.accentAmber} />
-          <Text style={{ color: Palette.textSecondary, marginTop: 12 }}>
-            Restoring your appreciation draft…
-          </Text>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loading}>
+          <ActivityIndicator color={ACCENT} />
+          <Text style={styles.loadingText}>Restoring your draft…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const relationshipOptions = TRIBUTE_RELATIONSHIPS.includes(relationship)
+    ? TRIBUTE_RELATIONSHIPS
+    : [...TRIBUTE_RELATIONSHIPS, relationship];
+  const nameMissing = validationError !== null && !mentorName.trim();
+  const storyMissing = validationError !== null && mentorName.trim().length > 0 && !story.trim();
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor={Palette.iceWhite} />
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Navigation bar */}
+      <View style={styles.navBar}>
+        <Pressable
+          onPress={goBack}
+          style={styles.navIcon}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={26} color={SystemColors.label} />
+        </Pressable>
+        <Text style={styles.navTitle} accessibilityRole="header">
+          Appreciation
+        </Text>
+        <Pressable
+          onPress={handleSaveDraft}
+          style={styles.navAction}
+          accessibilityRole="button"
+          accessibilityLabel={draftSavedAt ? "Draft saved" : "Save draft"}
+        >
+          <Text style={styles.navActionText}>{draftSavedAt ? "Saved ✓" : "Save Draft"}</Text>
+        </Pressable>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboardContainer}
+        style={styles.flex}
       >
-        <Animated.View style={[styles.mainContainer, { opacity: entranceFade }]}>
+        <Animated.View style={[styles.flex, { opacity: entranceFade }]}>
           <ScrollView
-            style={styles.scrollView}
+            style={styles.flex}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* ======================================================== */}
-            {/* 1. HEADER: Title, Subtitle, Back & Options               */}
-            {/* ======================================================== */}
-            <TributeHeader
-              onBack={() => router.back()}
-              onOptionsPress={() => {
-                Alert.alert(
-                  "Appreciation Options",
-                  "You can save this appreciation card as a draft or discard changes anytime.",
-                  [
-                    { text: "Continue Editing", style: "cancel" },
-                    {
-                      text: "Save as Draft",
-                      onPress: () => {
-                        handleSaveDraft();
-                      },
-                    },
-                  ]
-                );
-              }}
-            />
+            <View style={styles.content}>
+              <Text style={styles.lede}>
+                Celebrate someone who left a little of themselves in who you became.
+              </Text>
 
-            {/* ======================================================== */}
-            {/* 2. EDITORIAL HERO: Layered Mentor & Student Photo        */}
-            {/* ======================================================== */}
-            <TributeHeroEditorial />
+              {/* 1. Live card */}
+              <AppreciationCardPreview
+                name={mentorName}
+                relationship={relationship}
+                story={story}
+                photoUri={photoUri}
+                loadingPhoto={loadingPhoto}
+                onPickPhoto={handlePickPhoto}
+                onRemovePhoto={handlePhotoRemoved}
+              />
 
-            {/* ======================================================== */}
-            {/* 3. PHOTO SELECTION AREA: Gallery Picker & Sample Portrait*/}
-            {/* ======================================================== */}
-            <TributePhotoPicker
-              currentPhotoUri={photoUri}
-              isCustomPhoto={isCustomPhoto}
-              onPhotoSelected={handlePhotoSelected}
-              onPhotoRemoved={handlePhotoRemoved}
-            />
+              {/* 2. Who */}
+              <Text style={styles.sectionTitle} accessibilityRole="header">
+                Who are you celebrating?
+              </Text>
+              <TextInput
+                value={mentorName}
+                onChangeText={(text) => {
+                  setMentorName(text);
+                  if (validationError) setValidationError(null);
+                }}
+                placeholder="Their name"
+                placeholderTextColor={SystemColors.placeholderText}
+                style={[styles.field, nameMissing && styles.fieldError]}
+                autoCapitalize="words"
+                returnKeyType="next"
+                maxLength={60}
+                accessibilityLabel="Their name"
+              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chips}
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Your relationship"
+              >
+                {relationshipOptions.map((option) => {
+                  const selected = option === relationship;
+                  return (
+                    <Pressable
+                      key={option}
+                      onPress={() => setRelationship(option)}
+                      style={[styles.chip, selected && styles.chipSelected]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected, checked: selected }}
+                    >
+                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{option}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
 
-            {/* ======================================================== */}
-            {/* 4. WHO ARE WE CELEBRATING: Name Input & Relationship     */}
-            {/* ======================================================== */}
-            <TributePersonSection
-              name={mentorName}
-              relationship={relationship}
-              onNameChange={(text) => {
-                setMentorName(text);
-                if (validationError) setValidationError(null);
-              }}
-              onRelationshipChange={setRelationship}
-            />
+              {/* 3. Story */}
+              <Text style={styles.sectionTitle} accessibilityRole="header">
+                Their story
+              </Text>
+              <Text style={styles.sectionHint}>Need a starting point? Pick a prompt.</Text>
+              <View style={styles.prompts}>
+                {INSPIRATION_STORY_CARDS.map((card) => {
+                  const selected = card.id === selectedCardId;
+                  return (
+                    <Pressable
+                      key={card.id}
+                      onPress={() => handleSelectInspiration(card.promptText, card.id)}
+                      style={({ pressed }) => [
+                        styles.prompt,
+                        selected && styles.promptSelected,
+                        pressed && styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityHint="Adds this question to your story"
+                    >
+                      <Ionicons
+                        name={selected ? "checkmark-circle" : "sparkles-outline"}
+                        size={18}
+                        color={selected ? ACCENT : SystemColors.secondaryLabel}
+                      />
+                      <View style={styles.promptText}>
+                        <Text style={styles.promptTitle}>{card.title}</Text>
+                        <Text style={styles.promptSub} numberOfLines={2}>
+                          {card.subtitle}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-            {/* ======================================================== */}
-            {/* 5. A LITTLE INSPIRATION: 3 Horizontal Photographic Cards */}
-            {/* ======================================================== */}
-            <TributeInspirationCards
-              cards={INSPIRATION_STORY_CARDS}
-              selectedCardId={selectedCardId}
-              onSelectInspiration={handleSelectInspiration}
-            />
-
-            {/* ======================================================== */}
-            {/* 6. TELL THEIR STORY: Journal Multiline & Starter Question*/}
-            {/* ======================================================== */}
-            <TributeStorySection
-              story={story}
-              onStoryChange={(text) => {
-                setStory(text);
-                if (validationError) setValidationError(null);
-              }}
-              activePrompt={activePromptText}
-              onApplyPromptText={(prompt) => setStory((prev) => prev + "\n" + prompt)}
-              mentorName={mentorName}
-            />
-
-            {/* ======================================================== */}
-            {/* 7. MINIATURE APPRECIATION PREVIEW: Live Keepsake Card Preview */}
-            {/* ======================================================== */}
-            <TributeMiniPreview
-              name={mentorName}
-              relationship={relationship}
-              photoUri={photoUri || DEFAULT_SAMPLE_PORTRAIT}
-              story={story}
-            />
-
-            {/* ======================================================== */}
-            {/* 8. CONTINUE TO DESIGN BUTTON: Validation & Next Studio   */}
-            {/* ======================================================== */}
-            <TributeDesignFooter
-              onContinue={handleContinueToDesign}
-              errorMessage={validationError}
-            />
-
-            {/* Bottom Spacing so content is never covered by bottom nav */}
-            <View style={styles.bottomSpacer} />
+              <TextInput
+                value={story}
+                onChangeText={(text) => {
+                  setStory(text);
+                  if (validationError) setValidationError(null);
+                }}
+                placeholder={
+                  mentorName.trim()
+                    ? `What did ${mentorName.trim().split(" ")[0]} teach you, or do for you?`
+                    : "A moment you'll never forget, or a lesson they gave you…"
+                }
+                placeholderTextColor={SystemColors.placeholderText}
+                style={[styles.field, styles.storyField, storyMissing && styles.fieldError]}
+                multiline
+                maxLength={STORY_MAX}
+                textAlignVertical="top"
+                accessibilityLabel="Their story"
+              />
+              <Text style={styles.counter}>
+                {story.length}/{STORY_MAX}
+              </Text>
+            </View>
           </ScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
 
-      {/* Floating Bottom Navigation Bar (Active: Create) */}
-      <BottomNavigation activeTab="create" />
+        {/* Pinned footer */}
+        <View style={styles.footer}>
+          <View style={styles.footerInner}>
+            {validationError && (
+              <Text style={styles.error} accessibilityRole="alert">
+                {validationError}
+              </Text>
+            )}
+            <Pressable
+              onPress={handleContinueToDesign}
+              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryButtonText}>Continue to Design</Text>
+              <Ionicons name="arrow-forward" size={18} color={SystemColors.inverseLabel} />
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -417,23 +515,127 @@ function toTributeRelationship(value?: string): TributeRelationship {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Palette.iceWhite,
+  flex: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: SystemColors.systemBackground },
+  pressed: { opacity: 0.8 },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  loadingText: { ...TextStyles.subheadline, fontFamily: AppFonts.body, color: Palette.textMuted },
+
+  navBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 52,
+    paddingHorizontal: Layout.margin / 2,
+    width: "100%",
+    maxWidth: CONTENT_MAX_WIDTH + Layout.margin * 2,
+    alignSelf: "center",
   },
-  keyboardContainer: {
-    flex: 1,
+  navIcon: { width: 88, height: Layout.minTouch, justifyContent: "center", paddingLeft: 4 },
+  navTitle: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.label, flex: 1, textAlign: "center" },
+  navAction: { width: 88, height: Layout.minTouch, alignItems: "flex-end", justifyContent: "center", paddingRight: 8 },
+  navActionText: { ...TextStyles.body, fontFamily: AppFonts.body, color: SystemColors.blue },
+
+  scrollContent: { paddingBottom: 32 },
+  content: {
+    width: "100%",
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: "center",
+    paddingHorizontal: Layout.margin,
   },
-  mainContainer: {
-    flex: 1,
+  lede: {
+    ...TextStyles.subheadline,
+    fontFamily: AppFonts.body,
+    color: Palette.textMuted,
+    marginTop: 4,
+    marginBottom: 16,
   },
-  scrollView: {
-    flex: 1,
+
+  sectionTitle: {
+    ...TextStyles.title3,
+    fontFamily: AppFonts.displaySans,
+    color: SystemColors.label,
+    marginTop: 32,
+    marginBottom: 12,
   },
-  scrollContent: {
-    paddingTop: 4,
+  sectionHint: {
+    ...TextStyles.subheadline,
+    fontFamily: AppFonts.body,
+    color: Palette.textMuted,
+    marginTop: -6,
+    marginBottom: 12,
   },
-  bottomSpacer: {
-    height: 120,
+
+  field: {
+    ...TextStyles.body,
+    fontFamily: AppFonts.body,
+    color: SystemColors.label,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
+    minHeight: Layout.controlHeight,
+    paddingHorizontal: Layout.margin,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
+  fieldError: { borderColor: SystemColors.red },
+  storyField: { minHeight: 180, paddingTop: 14, paddingBottom: 14, marginTop: 14, lineHeight: 24 },
+  counter: {
+    ...TextStyles.caption1,
+    fontFamily: AppFonts.body,
+    color: Palette.textMuted,
+    alignSelf: "flex-end",
+    marginTop: 6,
+  },
+
+  chips: { gap: 8, paddingTop: 12 },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    justifyContent: "center",
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderWidth: 1,
+    borderColor: SystemColors.opaqueSeparator,
+  },
+  chipSelected: { backgroundColor: SystemColors.label, borderColor: SystemColors.label },
+  chipText: { ...TextStyles.subheadline, fontFamily: AppFonts.body, color: SystemColors.label },
+  chipTextSelected: { color: SystemColors.inverseLabel, fontWeight: "600" },
+
+  prompts: { gap: 8 },
+  prompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Layout.radiusMedium,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  promptSelected: { borderColor: "rgba(255, 55, 95, 0.55)", backgroundColor: "rgba(255, 55, 95, 0.08)" },
+  promptText: { flex: 1 },
+  promptTitle: { ...TextStyles.subheadline, fontFamily: AppFonts.body, fontWeight: "600", color: SystemColors.label },
+  promptSub: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: Palette.textMuted, marginTop: 1 },
+
+  footer: {
+    paddingHorizontal: Layout.margin,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: SystemColors.separator,
+    backgroundColor: SystemColors.systemBackground,
+  },
+  footerInner: { width: "100%", maxWidth: CONTENT_MAX_WIDTH, alignSelf: "center", gap: 8 },
+  error: { ...TextStyles.footnote, fontFamily: AppFonts.body, color: SystemColors.red, textAlign: "center" },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: Layout.controlHeight,
+    borderRadius: Layout.radiusMedium,
+    backgroundColor: SystemColors.label,
+  },
+  primaryButtonText: { ...TextStyles.headline, fontFamily: AppFonts.body, color: SystemColors.inverseLabel },
 });

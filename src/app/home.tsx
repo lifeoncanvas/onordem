@@ -18,12 +18,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 // Design System Tokens
-import { AppFonts, Palette } from "@/constants/theme";
+import { AppFonts, Layout, Palette, SystemColors, TextStyles } from "@/constants/theme";
 
 // Modular Reusable Components
 import SectionHeader from "../components/home/SectionHeader";
 import MentorCard, { MentorData } from "../components/home/MentorCard";
-import MemoryCard, { MemoryData } from "../components/home/MemoryCard";
+import type { MemoryData } from "../components/home/MemoryCard";
+import MemoryCollage from "../components/home/MemoryCollage";
+import PeopleSuggestions from "../components/home/PeopleSuggestions";
+import FollowingFeed from "../components/home/FollowingFeed";
+import { useT, type StringKey } from "@/i18n";
 import VoiceNoteCard, { VoiceNoteData } from "../components/home/VoiceNoteCard";
 import GratitudeCard, { GratitudePostData } from "../components/home/GratitudeCard";
 import AchievementCard, { AchievementData } from "../components/home/AchievementCard";
@@ -236,12 +240,12 @@ function MemoryFilterPill({
         <Ionicons
           name={icon}
           size={14}
-          color={isActive ? "#000000" : color}
+          color={isActive ? SystemColors.inverseLabel : color}
         />
         <Text
           style={[
             styles.filterText,
-            { color: isActive ? "#000000" : color },
+            { color: isActive ? SystemColors.inverseLabel : color },
             isActive && styles.filterTextActive,
           ]}
         >
@@ -250,6 +254,13 @@ function MemoryFilterPill({
       </TouchableOpacity>
     </Animated.View>
   );
+}
+
+function getGreetingKey(date = new Date()): StringKey {
+  const hour = date.getHours();
+  if (hour < 12) return "home.greeting.morning";
+  if (hour < 18) return "home.greeting.afternoon";
+  return "home.greeting.evening";
 }
 
 function formatAudioDuration(seconds: number) {
@@ -465,6 +476,7 @@ function toWallItem(memory: MemoryData): WallItem {
 }
 
 export default function HomeScreen() {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<NavTab>("home");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [mentorsList, setMentorsList] = useState<MentorData[]>(MENTORS_DATA);
@@ -587,6 +599,10 @@ export default function HomeScreen() {
       router.push("/create-tribute");
       return;
     }
+    if (option === "media") {
+      router.push("/upload-memory");
+      return;
+    }
     if (option === "memory" || option === "letter" || option === "lesson") {
       router.push({ pathname: "/create", params: { type: option } });
     }
@@ -666,13 +682,11 @@ export default function HomeScreen() {
         >
           <View style={styles.welcomeRow}>
             <View style={styles.welcomeCopy}>
-              <Text style={styles.welcomeTitle}>
-                Good morning,{"\n"}
+              <Text style={styles.welcomeTitle} accessibilityRole="header">
+                {t(getGreetingKey())}{"\n"}
                 {profile.name.split(" ")[0]}
               </Text>
-              <Text style={styles.welcomeSubtitle}>
-                Keep the people who shaped you close.
-              </Text>
+              <Text style={styles.welcomeSubtitle}>{t("home.tagline")}</Text>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
@@ -689,10 +703,9 @@ export default function HomeScreen() {
               >
                 <Ionicons
                   name="notifications-outline"
-                  size={22}
-                  color={Palette.textPrimary}
+                  size={24}
+                  color={SystemColors.blue}
                 />
-                <View style={styles.notificationDot} />
               </TouchableOpacity>
             <TouchableOpacity
               style={styles.profileAvatarBtn}
@@ -713,19 +726,20 @@ export default function HomeScreen() {
             <Ionicons
               name="search-outline"
               size={17}
-              color={Palette.textSecondary}
+              color={SystemColors.secondaryLabel}
             />
             <TextInput
               value={homeSearch}
               onChangeText={setHomeSearch}
-              placeholder="Search mentors, stories, lessons"
-              placeholderTextColor={Palette.textSecondary}
+              placeholder={t("home.search")}
+              placeholderTextColor={SystemColors.secondaryLabel}
+              selectionColor={SystemColors.blue}
               style={styles.homeSearchInput}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
               accessibilityRole="search"
-              accessibilityLabel="Search mentors, stories, and lessons"
+              accessibilityLabel={t("home.search")}
             />
             {homeSearch.length > 0 && (
               <TouchableOpacity
@@ -744,6 +758,46 @@ export default function HomeScreen() {
           </View>
 
           
+          <View style={styles.quickActionsContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickActionsScroll}
+            >
+              <QuickAction
+                icon="person-add"
+                label={t("home.action.addMentor")}
+                color={Palette.accentSky}
+                onPress={() => router.push("/create-mentor")}
+              />
+              <QuickAction
+                icon="add-circle"
+                label={t("home.action.addMemory")}
+                color={Palette.accentMint}
+                badge="+"
+                onPress={() => setIsAddModalOpen(true)}
+              />
+              <QuickAction
+                icon="heart"
+                label={t("home.action.appreciation")}
+                color={Palette.accentCoral}
+                onPress={() => router.push("/create-tribute")}
+              />
+              <QuickAction
+                icon="mic"
+                label={t("home.action.voiceNote")}
+                color={Palette.accentAmber}
+                onPress={() => setIsVoiceRecorderOpen(true)}
+              />
+              <QuickAction
+                icon="time"
+                label={t("home.action.timeline")}
+                color={Palette.accentSky}
+                onPress={() => router.push("/memory-wall")}
+              />
+            </ScrollView>
+          </View>
+
           {/* Open the app install popup from this compact home banner. */}
           {isWeb && (
             <View
@@ -758,7 +812,7 @@ export default function HomeScreen() {
                   windowWidth < 480 && styles.webQrPromptIconNarrow,
                 ]}
               >
-                <Ionicons name="phone-portrait-outline" size={28} color="#111111" />
+                <Ionicons name="phone-portrait-outline" size={26} color={SystemColors.label} />
               </View>
               <View style={styles.webQrPromptCopy}>
                 <Text style={styles.webQrPromptTitle}>Take your memories with you</Text>
@@ -774,7 +828,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Get the app"
               >
-                <Text style={styles.webQrPromptButtonText}>Get the app</Text>
+                <Text style={styles.webQrPromptButtonText}>Get the App</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -794,7 +848,7 @@ export default function HomeScreen() {
               />
               <View style={styles.featuredStoryContent}>
                 <View style={styles.featuredStoryBadge}>
-                  <Text style={styles.featuredStoryBadgeText}>Featured story</Text>
+                  <Text style={styles.featuredStoryBadgeText}>Featured Story</Text>
                 </View>
                 <Text style={styles.featuredStoryQuote} numberOfLines={3}>
                   &ldquo;{featuredMentor.quote}&rdquo;
@@ -809,7 +863,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Watch ${featuredMentor.name}'s story`}
                 >
-                  <Text style={styles.watchStoryText}>Watch story</Text>
+                  <Text style={styles.watchStoryText}>Watch Story</Text>
                   <Ionicons
                     name="chevron-forward"
                     size={16}
@@ -820,19 +874,23 @@ export default function HomeScreen() {
             </View>
           )}
 
+          {/* Feed: your posts + people you follow (compact collage) */}
+          <FollowingFeed />
+
           {/* ======================================================== */}
           {/* PEOPLE WHO SHAPED YOU                                   */}
           {/* ======================================================== */}
           <View style={styles.mentorsDarkSection}>
             <View style={styles.mentorSectionHeader}>
-              <Text style={styles.mentorSectionTitle}>People who made a difference</Text>
+              <Text style={styles.mentorSectionTitle} accessibilityRole="header">People Who Made a Difference</Text>
               <TouchableOpacity
                 onPress={() => router.push("/memory-wall")}
-                activeOpacity={0.75}
+                activeOpacity={0.6}
+                style={styles.mentorSectionActionTouch}
                 accessibilityRole="button"
                 accessibilityLabel="See all mentors"
               >
-                <Text style={styles.mentorSectionAction}>See all</Text>
+                <Text style={styles.mentorSectionAction}>See All</Text>
               </TouchableOpacity>
             </View>
 
@@ -862,56 +920,16 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          <View style={styles.quickActionsContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickActionsScroll}
-            >
-              <QuickAction
-                icon="person-add"
-                label="Add Mentor"
-                color={Palette.accentSky}
-                onPress={() => router.push("/create-mentor")}
-              />
-              <QuickAction
-                icon="add-circle"
-                label="Add Memory"
-                color={Palette.accentMint}
-                badge="+"
-                onPress={() => setIsAddModalOpen(true)}
-              />
-              <QuickAction
-                icon="heart"
-                label="Appreciation"
-                color={Palette.accentCoral}
-                onPress={() => router.push("/create-tribute")}
-              />
-              <QuickAction
-                icon="mic"
-                label="Voice Note"
-                color={Palette.accentAmber}
-                onPress={() => setIsVoiceRecorderOpen(true)}
-              />
-              <QuickAction
-                icon="time"
-                label="Timeline"
-                color={Palette.accentSky}
-                onPress={() => router.push("/memory-wall")}
-              />
-            </ScrollView>
-          </View>
-
           {/* ======================================================== */}
           {/* 6. A LESSON I CARRY                                      */}
           {/* ======================================================== */}
           <View style={styles.lessonSection}>
             <View style={styles.lessonCard}>
               <View style={styles.lessonWaxSeal}>
-                <Ionicons name="bookmark" size={16} color={Palette.accentAmber} />
+                <Ionicons name="bookmark" size={16} color={SystemColors.yellow} />
               </View>
 
-              <Text style={styles.lessonHeaderLabel}>A LESSON I CARRY</Text>
+              <Text style={styles.lessonHeaderLabel}>A Lesson I Carry</Text>
 
               <Text style={styles.lessonQuoteText}>
                 &ldquo;Your mentor may leave the room, but their lessons never have to.&rdquo;
@@ -932,7 +950,6 @@ export default function HomeScreen() {
           <SectionHeader
             title="Your Memory Wall"
             subtitle="Little moments. Lifelong impact."
-            badge="Living Wall"
             isDark
           />
 
@@ -954,28 +971,25 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
 
-          {/* Staggered Memory Cards */}
-          <View style={styles.memoryWallContainer}>
-            {filteredMemories.map((mem) => (
-              <MemoryCard
-                key={mem.id}
-                memory={mem}
-                onPress={() => handleOpenHomeMemory(mem)}
-              />
-            ))}
-          </View>
+          {/* Memory collage: hero photo + masonry tiles */}
+          <MemoryCollage memories={filteredMemories} onOpen={handleOpenHomeMemory} />
+
+          {/* People to follow */}
+          <PeopleSuggestions />
 
           {/* ======================================================== */}
           {/* 5. ADD A MEMORY FEATURED CALLOUT                         */}
           {/* ======================================================== */}
           <View style={styles.addCalloutWrapper}>
             <TouchableOpacity
-              activeOpacity={0.88}
+              activeOpacity={0.7}
               onPress={() => setIsAddModalOpen(true)}
               style={styles.addCalloutBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Add to your memory wall"
             >
               <LinearGradient
-                colors={["#1C1C1C", "#141414", "#0F0F0F"]}
+                colors={["transparent", "transparent"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.addCalloutGradient}
@@ -989,7 +1003,7 @@ export default function HomeScreen() {
                     Record a voice note, photo, or handwritten lesson
                   </Text>
                 </View>
-                <Ionicons name="add-circle" size={28} color={Palette.accentMint} />
+                <Ionicons name="add-circle" size={30} color={SystemColors.blue} />
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -1009,7 +1023,7 @@ export default function HomeScreen() {
             <View style={styles.promptCard}>
               <View style={styles.promptHeader}>
                 <Ionicons name="bulb-outline" size={18} color={Palette.accentAmber} />
-                <Text style={styles.promptTag}>TODAY&apos;S REFLECTION</Text>
+                <Text style={styles.promptTag}>Today&apos;s Reflection</Text>
               </View>
 
               <Text style={styles.promptQuestion}>
@@ -1028,16 +1042,22 @@ export default function HomeScreen() {
                   <TextInput
                     value={reflectionInput}
                     onChangeText={setReflectionInput}
-                    placeholder="Write your answer..."
-                    placeholderTextColor="#737373"
+                    placeholder="Write your answer…"
+                    placeholderTextColor={Palette.textMuted}
                     style={styles.promptInput}
+                    selectionColor={SystemColors.blue}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveReflection}
+                    accessibilityLabel="Your reflection"
                   />
                   <TouchableOpacity
                     onPress={handleSaveReflection}
-                    activeOpacity={0.8}
+                    activeOpacity={0.6}
                     style={styles.promptSubmitBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save reflection"
                   >
-                    <Ionicons name="arrow-forward" size={16} color="#000000" />
+                    <Ionicons name="arrow-up-circle" size={30} color={reflectionInput.trim() ? SystemColors.blue : SystemColors.tertiaryLabel} />
                   </TouchableOpacity>
                 </View>
               )}
@@ -1050,7 +1070,6 @@ export default function HomeScreen() {
           <SectionHeader
             title="Words They Should Hear"
             subtitle="Spoken gratitude and audio keepsakes"
-            badge="Voice Vault"
             isDark
           />
 
@@ -1070,7 +1089,6 @@ export default function HomeScreen() {
           <SectionHeader
             title="Achievements Inspired By Them"
             subtitle="Milestones made possible by their faith in you"
-            badge="Milestones"
             isDark
           />
 
@@ -1124,7 +1142,6 @@ export default function HomeScreen() {
           <SectionHeader
             title="Gratitude From Around the World"
             subtitle="Heartfelt stories shared by the global community"
-            badge="Community"
             isDark
           />
 
@@ -1191,58 +1208,50 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Palette.iceWhite, // Ice White base background
+    backgroundColor: SystemColors.systemBackground,
   },
   paperCanvas: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: Palette.iceWhite,
+    backgroundColor: SystemColors.systemBackground,
   },
   mainContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 12,
+    paddingTop: 8,
   },
 
   welcomeRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginBottom: 18,
+    paddingHorizontal: Layout.margin,
+    marginBottom: 16,
   },
   welcomeCopy: {
     flex: 1,
     paddingRight: 10,
   },
   welcomeTitle: {
-    color: Palette.textPrimary,
-    fontSize: 28,
-    lineHeight: 34,
-    letterSpacing: -0.7,
-    fontWeight: "800",
+    ...TextStyles.largeTitle,
+    color: SystemColors.label,
   },
   welcomeSubtitle: {
-    color: Palette.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 7,
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
+    marginTop: 4,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 4,
+    marginTop: 4,
   },
   notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: Layout.minTouch,
+    height: Layout.minTouch,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Palette.surfaceCard,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    position: "relative",
   },
   notificationDot: {
     position: "absolute",
@@ -1254,42 +1263,41 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.accentSky,
   },
   profileAvatarBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    width: 36,
+    height: 36,
+    margin: 4,
+    borderRadius: 18,
     overflow: "hidden",
-    marginLeft: 12,
+    backgroundColor: SystemColors.tertiarySystemBackground,
   },
   profileAvatar: {
     width: "100%",
     height: "100%",
   },
   homeSearch: {
-    height: 43,
+    height: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-    marginHorizontal: 20,
-    paddingHorizontal: 14,
-    backgroundColor: Palette.surfaceElevated,
-    borderRadius: 17,
-    marginBottom: 13,
+    gap: 6,
+    marginHorizontal: Layout.margin,
+    paddingHorizontal: 8,
+    backgroundColor: SystemColors.tertiarySystemFill,
+    borderRadius: Layout.radiusSmall,
+    marginBottom: 20,
   },
   homeSearchInput: {
     flex: 1,
     paddingVertical: 0,
-    fontSize: 12,
-    color: Palette.textPrimary,
+    ...TextStyles.body,
+    color: SystemColors.label,
   },
   featuredStory: {
-    height: 332,
-    marginHorizontal: 20,
-    marginBottom: 5,
-    borderRadius: 23,
+    height: 360,
+    marginHorizontal: Layout.margin,
+    marginBottom: 8,
+    borderRadius: Layout.radiusXL,
     overflow: "hidden",
-    backgroundColor: Palette.surfaceCard,
+    backgroundColor: SystemColors.secondarySystemBackground,
   },
   featuredStoryImage: {
     position: "absolute",
@@ -1303,76 +1311,75 @@ const styles = StyleSheet.create({
   },
   featuredStoryContent: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
+    left: 20,
+    right: 20,
+    bottom: 20,
     alignItems: "flex-start",
   },
   featuredStoryBadge: {
-    backgroundColor: Palette.accentPink,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
     marginBottom: 10,
   },
   featuredStoryBadgeText: {
-    color: Palette.textOnPrimary,
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    ...TextStyles.caption1,
+    fontWeight: "600",
+    color: "#FFFFFF", // on a photo: stays white in both appearances
   },
   featuredStoryQuote: {
-    color: Palette.textPrimary,
-    fontSize: 23,
-    lineHeight: 26,
-    fontWeight: "700",
+    ...TextStyles.title2,
+    color: "#FFFFFF",
     fontFamily: AppFonts.displaySans,
-    marginBottom: 5,
+    marginBottom: 6,
   },
   featuredStoryMentor: {
-    fontSize: 10,
-    color: Palette.textSecondary,
+    ...TextStyles.subheadline,
+    color: "rgba(235, 235, 245, 0.8)",
   },
   watchStoryButton: {
-    minHeight: 39,
+    minHeight: Layout.minTouch,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginTop: 13,
-    borderRadius: 22,
-    backgroundColor: Palette.textPrimary,
+    gap: 4,
+    paddingHorizontal: 18,
+    marginTop: 14,
+    borderRadius: Layout.minTouch / 2,
+    backgroundColor: "#FFFFFF", // on a photo: stays white in both appearances
   },
   watchStoryText: {
-    color: Palette.textOnPrimary,
-    fontSize: 11,
-    fontWeight: "800",
+    ...TextStyles.subheadline,
+    fontWeight: "600",
+    color: "#000000",
   },
   mentorSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginTop: 17,
-    marginBottom: 12,
+    paddingHorizontal: Layout.margin,
+    marginTop: 24,
+    marginBottom: 8,
   },
   mentorSectionTitle: {
-    color: Palette.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: -0.2,
+    ...TextStyles.title2,
+    color: SystemColors.label,
+    flexShrink: 1,
+  },
+  mentorSectionActionTouch: {
+    minHeight: Layout.minTouch,
+    justifyContent: "center",
+    paddingLeft: 8,
   },
   mentorSectionAction: {
-    color: Palette.accentSky,
-    fontSize: 10,
-    fontWeight: "700",
+    ...TextStyles.body,
+    color: SystemColors.blue,
   },
   noMentorsText: {
-    color: Palette.textSecondary,
-    fontSize: 13,
-    paddingHorizontal: 20,
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
+    paddingHorizontal: Layout.margin,
   },
 
   /* Quick Actions Bar */
@@ -1380,62 +1387,52 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   quickActionsScroll: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Layout.margin,
   },
 
   mentorsDarkSection: {
     marginBottom: 8,
   },
   mentorsScroll: {
-    paddingLeft: 20,
-    paddingRight: 6,
+    paddingLeft: Layout.margin,
+    paddingRight: 4,
     marginBottom: 4,
   },
 
   /* 6. A Lesson I Carry (Mint Mist) */
   lessonSection: {
-    marginHorizontal: 20,
+    marginHorizontal: Layout.margin,
     marginTop: 24,
     marginBottom: 8,
   },
   lessonCard: {
-    borderRadius: 22,
-    padding: 22,
-    backgroundColor: Palette.mintMist, // Mint Mist card
-    borderWidth: 1.2,
-    borderColor: "#303030",
+    borderRadius: Layout.radiusLarge,
+    padding: 20,
+    backgroundColor: SystemColors.secondarySystemBackground,
     position: "relative",
-    shadowColor: Palette.oceanTeal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   lessonWaxSeal: {
     position: "absolute",
     top: 16,
-    right: 18,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Palette.pureWhite,
+    right: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 214, 10, 0.18)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: Palette.turquoise,
   },
   lessonHeaderLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 2,
-    color: Palette.oceanTeal,
+    ...TextStyles.footnote,
+    fontWeight: "600",
+    color: SystemColors.secondaryLabel,
     marginBottom: 10,
   },
   lessonQuoteText: {
-    fontSize: 17,
-    lineHeight: 26,
-    color: Palette.deepTeal,
-    fontStyle: "italic",
+    ...TextStyles.title3,
+    fontWeight: "400",
+    lineHeight: 27,
+    color: SystemColors.label,
     fontFamily: AppFonts.body,
   },
   lessonAuthorRow: {
@@ -1445,83 +1442,72 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tealDividerLine: {
-    width: 20,
-    height: 2,
-    backgroundColor: Palette.turquoise, // Turquoise line
+    width: 16,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: SystemColors.secondaryLabel,
   },
   lessonAuthor: {
-    fontSize: 12.5,
-    color: Palette.oceanTeal,
-    fontWeight: "800",
+    ...TextStyles.subheadline,
+    color: SystemColors.secondaryLabel,
+    flexShrink: 1,
   },
 
   /* Filter Row */
   filterRow: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Layout.margin,
     gap: 8,
     marginBottom: 16,
   },
   filterPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    minHeight: 36,
     borderRadius: 999,
-    backgroundColor: Palette.pureWhite,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    backgroundColor: SystemColors.tertiarySystemFill,
   },
   filterPillActive: {
-    backgroundColor: Palette.oceanTeal,
-    borderColor: Palette.oceanTeal,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: SystemColors.label,
   },
   filterText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Palette.deepTeal,
+    ...TextStyles.subheadline,
+    fontWeight: "500",
+    color: SystemColors.label,
   },
   filterTextActive: {
-    color: "#000000",
-    fontWeight: "800",
+    color: SystemColors.inverseLabel,
+    fontWeight: "600",
   },
 
   /* Memory Wall Cards */
   memoryWallContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Layout.margin,
   },
 
   /* 5. Add Memory Callout (Ocean Teal Button) */
   addCalloutWrapper: {
-    marginHorizontal: 20,
+    marginHorizontal: Layout.margin,
     marginTop: 12,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   addCalloutBtn: {
-    borderRadius: 20,
+    borderRadius: Layout.radiusLarge,
     overflow: "hidden",
-    shadowColor: "#B84E0E",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.32,
-    shadowRadius: 12,
-    elevation: 6,
   },
   addCalloutGradient: {
+    backgroundColor: SystemColors.secondarySystemBackground,
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
+    minHeight: 72,
     gap: 12,
   },
   addCalloutIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 214, 10, 0.18)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1529,27 +1515,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addCalloutTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    ...TextStyles.headline,
+    color: SystemColors.label,
   },
   addCalloutSub: {
-    fontSize: 12,
-    color: "rgba(255, 248, 240, 0.95)",
+    ...TextStyles.footnote,
+    color: SystemColors.secondaryLabel,
     marginTop: 2,
   },
 
   /* 11. Daily Prompt (Mint Mist Surface) */
   promptSection: {
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: Layout.margin,
+    marginBottom: 24,
   },
   promptCard: {
-    padding: 18,
-    borderRadius: 22,
-    backgroundColor: Palette.mintMist, // Mint Mist reflection card
-    borderWidth: 1.2,
-    borderColor: "#303030",
+    padding: 20,
+    borderRadius: Layout.radiusLarge,
+    backgroundColor: SystemColors.secondarySystemBackground,
   },
   promptHeader: {
     flexDirection: "row",
@@ -1558,39 +1541,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   promptTag: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: Palette.oceanTeal,
-    letterSpacing: 1,
+    ...TextStyles.footnote,
+    fontWeight: "600",
+    color: SystemColors.secondaryLabel,
   },
   promptQuestion: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: Palette.deepTeal,
-    fontStyle: "italic",
+    ...TextStyles.body,
+    color: SystemColors.label,
     marginBottom: 14,
   },
   promptInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Palette.pureWhite,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderWidth: 1.2,
-    borderColor: Palette.borderSubtle,
+    backgroundColor: SystemColors.tertiarySystemFill,
+    borderRadius: Layout.radiusMedium,
+    paddingLeft: 14,
+    minHeight: Layout.controlHeight,
   },
   promptInput: {
     flex: 1,
-    color: Palette.deepTeal,
-    fontSize: 13.5,
-    paddingVertical: 8,
+    ...TextStyles.body,
+    color: SystemColors.label,
+    paddingVertical: 10,
   },
   promptSubmitBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Palette.oceanTeal, // Ocean Teal submit button
+    width: Layout.minTouch,
+    height: Layout.minTouch,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1598,41 +1574,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(143, 211, 255, 0.12)",
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(143, 211, 255, 0.25)",
+    backgroundColor: "rgba(48, 209, 88, 0.15)",
+    padding: 12,
+    borderRadius: Layout.radiusSmall,
   },
   promptSuccessText: {
-    color: Palette.oceanTeal,
-    fontSize: 13,
-    fontWeight: "700",
+    ...TextStyles.subheadline,
+    color: SystemColors.label,
+    flexShrink: 1,
   },
 
   /* Voice & Achievements Scroll */
   voiceScroll: {
-    paddingLeft: 20,
-    paddingRight: 6,
+    paddingLeft: Layout.margin,
+    paddingRight: 4,
   },
   webQrPrompt: {
-    marginHorizontal: 20,
-    marginBottom: 18,
-    backgroundColor: "#171717",
-    borderRadius: 24,
-    paddingHorizontal: 18,
+    marginHorizontal: Layout.margin,
+    marginBottom: 20,
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusLarge,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    borderWidth: 1,
-    borderColor: "#303030",
   },
   webQrPromptIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: "#FFB899",
+    width: 56,
+    height: 56,
+    borderRadius: 13,
+    backgroundColor: SystemColors.tertiarySystemBackground,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1653,38 +1625,33 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   webQrPromptTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.2,
+    ...TextStyles.headline,
+    color: SystemColors.label,
   },
   webQrPromptSubtitle: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: "#A1A1A1",
+    ...TextStyles.footnote,
+    color: SystemColors.secondaryLabel,
   },
   webQrPromptButton: {
-    minWidth: 124,
     marginLeft: "auto",
-    minHeight: 46,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
+    minHeight: Layout.minTouch,
+    paddingHorizontal: 18,
+    borderRadius: Layout.minTouch / 2,
+    backgroundColor: SystemColors.blue,
     alignItems: "center",
     justifyContent: "center",
   },
   webQrPromptButtonNarrow: {
-    minWidth: 112,
-    minHeight: 42,
+    minHeight: Layout.minTouch,
   },
   webQrPromptButtonText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#111111",
+    ...TextStyles.subheadline,
+    fontWeight: "600",
+    color: SystemColors.label,
   },
 
   achievementsScroll: {
-    paddingLeft: 20,
-    paddingRight: 6,
+    paddingLeft: Layout.margin,
+    paddingRight: 4,
   },
 });

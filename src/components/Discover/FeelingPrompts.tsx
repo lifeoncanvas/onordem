@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   cardUnselected: {
     backgroundColor: Palette.mintMist, // Soft Mint Mist background
     borderColor: "rgba(236, 143, 62, 0.22)",
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 5,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   cardSelected: {
     backgroundColor: Palette.oceanTeal, // Ocean Teal when active
     borderColor: Palette.oceanTeal,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   cardPressed: {
     borderColor: "rgba(236, 143, 62, 0.7)",
-    shadowColor: Palette.turquoise,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.22,
     shadowRadius: 12,

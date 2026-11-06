@@ -15,7 +15,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { AppFonts, Palette } from "@/constants/theme";
 import { memoryService } from "@/services/memoryService";
-import { api } from "@/services/api";
 import { userProfileService } from "@/services/userProfileService";
 
 interface CreativeVoiceModalProps {
@@ -372,27 +371,14 @@ export default function CreativeVoiceModal({
         quote: quote,
         createdAt: new Date().toISOString(),
         isPinned: false,
+      }, {
+        recipientEmail: mentorEmail.trim() || undefined,
+        sendDedicationEmail: sendEmailDedication && !!mentorEmail.trim(),
+        signature: author.name || undefined,
+        privacy: shareOnFeed ? "PUBLIC" : "PRIVATE",
       });
 
-      // 2. Publish to backend and send dedication email if requested
-      try {
-        await api.tributes.create({
-          mentorName,
-          relationship: voiceNote?.relationship || "Mentor",
-          kind: "memory",
-          title,
-          story: quote,
-          excerpt: quote,
-          quote: quote,
-          signature: author.name || "Sharon",
-          recipientEmail: mentorEmail.trim() || undefined,
-          sendDedicationEmail: sendEmailDedication && !!mentorEmail.trim(),
-          isShared: shareOnFeed,
-          privacy: shareOnFeed ? "PUBLIC" : "PRIVATE",
-        });
-      } catch (backendErr) {
-        console.warn("Tribute backend dispatch error:", backendErr);
-      }
+      // 2. memoryService.addMemory saves it to the backend and sends the dedication email.
 
       const alertMsg = mentorEmail.trim() && sendEmailDedication
         ? `Your voice note has been recorded and dedicated! We sent an email notification to ${mentorEmail.trim()} with the link so your mentor can listen.`

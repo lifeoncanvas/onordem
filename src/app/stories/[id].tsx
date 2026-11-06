@@ -25,6 +25,8 @@ import { getAllStories, getStoryById } from "@/data/mockStories";
 // Shared Navigation
 import BottomNavigation from "@/components/home/BottomNavigation";
 import { storyBookmarkService } from "@/services/storyBookmarkService";
+import FollowButton from "@/components/FollowButton";
+import { storyAuthorTarget } from "@/utils/followTargets";
 
 export default function StoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -237,10 +239,15 @@ export default function StoryDetailScreen() {
             )}
           </View>
 
-          {story.authorRole && (
-            <Text style={styles.authorRoleText}>
-              Reflection shared by {story.authorRole}
-            </Text>
+          {(story.authorRole || story.author) && (
+            <View style={styles.authorFollowRow}>
+              <Text style={[styles.authorRoleText, styles.authorFollowText]}>
+                {story.authorRole ? `Reflection shared by ${story.authorRole}` : ""}
+              </Text>
+              {story.author ? (
+                <FollowButton person={storyAuthorTarget(story)} size="small" />
+              ) : null}
+            </View>
           )}
         </View>
 
@@ -662,7 +669,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -692,7 +699,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -714,7 +721,7 @@ const styles = StyleSheet.create({
     position: "relative",
     borderWidth: 1,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -801,6 +808,14 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 6,
   },
+  authorFollowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 10,
+  },
+  authorFollowText: { flex: 1, marginTop: 0 },
 
   /* Pull Quote Card */
   pullExcerptCard: {
@@ -870,7 +885,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     borderColor: "rgba(236, 143, 62, 0.3)",
     position: "relative",
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -949,7 +964,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -1002,7 +1017,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.oceanTeal,
     paddingVertical: 12,
     borderRadius: 18,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -1106,7 +1121,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.oceanTeal, // Ocean Teal primary
     paddingVertical: 14,
     borderRadius: 22,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 8,
@@ -1133,7 +1148,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -1179,7 +1194,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 1,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -1325,7 +1340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 20,
     marginTop: 6,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,

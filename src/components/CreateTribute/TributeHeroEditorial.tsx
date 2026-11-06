@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1.5,
     borderColor: "rgba(252, 238, 228, 0.9)",
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.14,
     shadowRadius: 14,

@@ -59,6 +59,8 @@ export interface WallMemory {
   story?: string;
   imageUri?: string;
   additionalImages?: string[];
+  /** Videos attached from the photo library or camera. */
+  videoUris?: string[];
   audioUri?: string;
   audioDuration?: number;
   year: string;

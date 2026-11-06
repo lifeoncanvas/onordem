@@ -3,7 +3,8 @@ import { WALL_ITEMS, WALL_MENTOR_PROFILES } from "@/data/memoryWallData";
 import { tributeDraftService } from "./tributeDraftService";
 import { WallItem, WallMentorProfile, WallTribute } from "@/types/memoryWall";
 import type { TributeRelationship } from "@/types/create";
-import { api } from "./api";
+import { api, getAuthToken } from "./api";
+import { ensureRemoteMedia } from "./mediaUpload";
 
 type Listener = () => void;
 
@@ -28,6 +29,52 @@ function isTributeRelationship(value: string): value is TributeRelationship {
   ].includes(value);
 }
 
+function isStringMap(value: unknown): value is Record<string, string> {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === "string")
+  );
+}
+
+/** Converts a backend TributeDto into a wall item. */
+function dtoToWallItem(dto: any): WallItem {
+  const storyText = dto.story || dto.excerpt || dto.quote || "";
+  return {
+    kind: (dto.kind as any) || "tribute",
+    id: dto.id,
+    mentorId: dto.mentorId,
+    mentorName: dto.mentorName,
+    relationship: dto.relationship || "Mentor",
+    title: dto.title || `Tribute to ${dto.mentorName}`,
+    photoUri: dto.photoUri || "",
+    imageUri: dto.photoUri || "",
+    additionalImages: Array.isArray(dto.additionalImages) ? dto.additionalImages : [],
+    videoUris: Array.isArray(dto.videoUris) && dto.videoUris.length ? dto.videoUris : undefined,
+    audioUri: dto.audioUri || undefined,
+    quote: dto.quote || storyText,
+    story: storyText,
+    excerpt: dto.excerpt || storyText.slice(0, 180),
+    preview: dto.excerpt || storyText.slice(0, 180) || "A heartfelt tribute dedicated to guidance and wisdom.",
+    letterBody: storyText,
+    salutation: dto.salutation || `Dear ${dto.mentorName},`,
+    signoff: dto.signoff || "With gratitude,",
+    signature: dto.signature || "A Mentee",
+    wordCount: storyText ? storyText.split(/\s+/).filter(Boolean).length : 40,
+    mood: dto.mood || "Grateful",
+    lessonTitle: dto.title || `Lesson from ${dto.mentorName}`,
+    lessonCarried: dto.lessonCarried || "",
+    momentToRemember: dto.momentToRemember || "",
+    year: dto.year || String(new Date(dto.createdAt || Date.now()).getFullYear()),
+    emotion: dto.emotion || "Gratitude",
+    emotionColor: dto.emotionColor || "#FF9ECF",
+    createdAt: dto.createdAt || new Date().toISOString(),
+    isPinned: dto.isPinned || dto.pinned || false,
+    isShared: dto.isShared || dto.shared || false,
+  } as any;
+}
+
 function isPinOverrideMap(value: unknown): value is Record<string, boolean> {
   return (
     !!value &&
@@ -42,6 +89,12 @@ class MemoryService {
   private mentors: WallMentorProfile[] = [...WALL_MENTOR_PROFILES];
   private userItemIds = new Set<string>();
   private pinOverrides = new Map<string, boolean>();
+  /** Local item id → backend tribute id, for items created on this device. */
+  private serverIds = new Map<string, string>();
+  /** Items the author marked private (kept so an offline retry stays private). */
+  private privateIds = new Set<string>();
+  /** Items currently being uploaded, so a retry doesn't post them twice. */
+  private pushing = new Set<string>();
   private listeners: Set<Listener> = new Set();
   private initializePromise: Promise<void> | null = null;
   private persistenceQueue: Promise<void> = Promise.resolve();
@@ -69,6 +122,8 @@ class MemoryService {
             const data = parsed as {
               items?: unknown;
               pinOverrides?: unknown;
+              serverIds?: unknown;
+              privateIds?: unknown;
             };
             if (
               !Array.isArray(data.items) ||
@@ -82,6 +137,12 @@ class MemoryService {
             Object.entries(data.pinOverrides ?? {}).forEach(([id, isPinned]) => {
               this.pinOverrides.set(id, isPinned);
             });
+            if (isStringMap(data.serverIds)) {
+              this.serverIds = new Map(Object.entries(data.serverIds));
+            }
+            if (Array.isArray(data.privateIds)) {
+              this.privateIds = new Set(data.privateIds.filter((v): v is string => typeof v === "string"));
+            }
           } else {
             throw new Error("The saved memory collection is invalid.");
           }
@@ -91,6 +152,9 @@ class MemoryService {
           }
           this.updateMentorCounts();
           this.notify();
+        })
+        .then(() => {
+          // Always sync, including on a fresh device with nothing stored yet.
           this.syncWithBackend().catch(() => {});
         })
         .catch((error: unknown) => {
@@ -109,45 +173,17 @@ class MemoryService {
       // 1. Fetch public feed tributes from Neon PostgreSQL
       const feedRes = await api.tributes.publicFeed(0, 50);
       if (feedRes?.data?.content && Array.isArray(feedRes.data.content)) {
+        const mine = new Set(this.serverIds.values());
         for (const dto of feedRes.data.content) {
-          const exists = this.items.some((i) => i.id === dto.id);
-          if (!exists) {
-            const storyText = dto.story || dto.excerpt || dto.quote || "";
-            const wallItem: WallItem = {
-              kind: (dto.kind as any) || "tribute",
-              id: dto.id,
-              mentorId: dto.mentorId,
-              mentorName: dto.mentorName,
-              relationship: dto.relationship || "Mentor",
-              title: dto.title || `Tribute to ${dto.mentorName}`,
-              photoUri: dto.photoUri || "",
-              imageUri: dto.photoUri || "",
-              quote: dto.quote || storyText,
-              story: storyText,
-              excerpt: dto.excerpt || storyText.slice(0, 180),
-              preview: dto.excerpt || storyText.slice(0, 180) || "A heartfelt tribute dedicated to guidance and wisdom.",
-              letterBody: storyText,
-              salutation: dto.salutation || `Dear ${dto.mentorName},`,
-              signoff: dto.signoff || "With gratitude,",
-              signature: dto.signature || "A Mentee",
-              wordCount: storyText ? storyText.split(/\s+/).filter(Boolean).length : 40,
-              mood: dto.mood || "Grateful",
-              lessonTitle: dto.title || `Lesson from ${dto.mentorName}`,
-              lessonCarried: dto.lessonCarried || "",
-              momentToRemember: dto.momentToRemember || "",
-              year: dto.year || "2024",
-              emotion: dto.emotion || "Gratitude",
-              emotionColor: dto.emotionColor || "#FF9ECF",
-              createdAt: dto.createdAt || new Date().toISOString(),
-              isPinned: dto.isPinned || false,
-              isShared: dto.isShared || false,
-            } as any;
-            this.items.unshift(wallItem);
-          }
+          const exists = this.items.some((i) => i.id === dto.id) || mine.has(dto.id);
+          if (!exists) this.items.unshift(dtoToWallItem(dto));
         }
       }
 
-      // 2. Fetch mentors list from Backend
+      // 2. Your own posts: upload anything not yet on the server, then load them all back.
+      await this.syncMyTributes();
+
+      // 3. Fetch mentors list from Backend
       const mentorsRes = await api.mentors.list();
       if (mentorsRes?.data && Array.isArray(mentorsRes.data)) {
         for (const m of mentorsRes.data) {
@@ -375,7 +411,9 @@ class MemoryService {
       this.updateMentorCounts();
       this.notify();
       this.persistUserItems();
-      api.tributes.delete(id).catch(() => {});
+      const serverId = this.serverIdFor(id);
+      if (serverId) api.tributes.delete(serverId).catch(() => {});
+      this.serverIds.delete(id);
       return true;
     }
     return false;
@@ -388,7 +426,8 @@ class MemoryService {
       this.pinOverrides.set(id, item.isPinned);
       this.notify();
       this.persistUserItems();
-      api.tributes.togglePin(id).catch(() => {});
+      const serverId = this.serverIdFor(id);
+      if (serverId) api.tributes.togglePin(serverId).catch(() => {});
     }
   }
 
@@ -400,6 +439,7 @@ class MemoryService {
       signature?: string;
       salutation?: string;
       signoff?: string;
+      privacy?: "PUBLIC" | "PRIVATE";
     }
   ): string {
     const existingIndex = this.items.findIndex((saved) => saved.id === item.id);
@@ -434,62 +474,11 @@ class MemoryService {
     this.notify();
     this.persistUserItems();
 
-    // Asynchronously synchronize to Spring Boot + Neon DB backend
-    const storyText =
-      "story" in newItem && (newItem as any).story
-        ? (newItem as any).story
-        : "letterBody" in newItem && (newItem as any).letterBody
-        ? (newItem as any).letterBody
-        : "excerpt" in newItem && (newItem as any).excerpt
-        ? (newItem as any).excerpt
-        : "preview" in newItem && (newItem as any).preview
-        ? (newItem as any).preview
-        : "";
-
-    const excerptText =
-      "excerpt" in newItem && (newItem as any).excerpt
-        ? (newItem as any).excerpt
-        : "preview" in newItem && (newItem as any).preview
-        ? (newItem as any).preview
-        : storyText.slice(0, 200);
-
-    const sig =
-      meta?.signature ||
-      ("signature" in newItem && (newItem as any).signature ? (newItem as any).signature : undefined);
-
-    api.tributes
-      .create({
-        mentorName: newItem.mentorName,
-        kind: newItem.kind,
-        title:
-          "title" in newItem
-            ? newItem.title
-            : "lessonTitle" in newItem
-            ? (newItem as any).lessonTitle
-            : newItem.mentorName,
-        relationship: newItem.relationship || "Mentor",
-        photoUri:
-          "photoUri" in newItem
-            ? (newItem as any).photoUri
-            : "imageUri" in newItem
-            ? (newItem as any).imageUri
-            : "",
-        quote: "quote" in newItem ? (newItem as any).quote : "",
-        story: storyText,
-        excerpt: excerptText,
-        salutation: "salutation" in newItem ? (newItem as any).salutation : meta?.salutation,
-        signoff: "signoff" in newItem ? (newItem as any).signoff : meta?.signoff,
-        signature: sig,
-        recipientEmail: meta?.recipientEmail,
-        sendDedicationEmail: meta?.sendDedicationEmail,
-        lessonCarried: "lessonCarried" in newItem ? (newItem as any).lessonCarried : "",
-        momentToRemember: "momentToRemember" in newItem ? (newItem as any).momentToRemember : "",
-        privacy: "PUBLIC",
-        isPinned: newItem.isPinned || false,
-      })
-      .catch((err) => {
-        console.debug("Backend tribute sync queued/offline:", err);
-      });
+    if (meta?.privacy === "PRIVATE") this.privateIds.add(newItem.id);
+    else this.privateIds.delete(newItem.id);
+    this.persistUserItems();
+    // Upload media, then save to the backend (retried later if offline or signed out).
+    void this.pushToBackend(newItem.id, meta);
 
     return newItem.id;
   }
@@ -575,11 +564,143 @@ class MemoryService {
     }
   }
 
+  /** Backend id for an item, or null for local-only items not yet uploaded. */
+  private serverIdFor(id: string): string | null {
+    const mapped = this.serverIds.get(id);
+    if (mapped) return mapped;
+    // Items loaded from the server already use the server id.
+    return id.startsWith("trib_") ? id : null;
+  }
+
+  /**
+   * Uploads an item's photos/videos/voice note, then creates it on the backend.
+   * On success the local item keeps its id but switches to the server's media URLs.
+   */
+  private async pushToBackend(
+    id: string,
+    meta?: { recipientEmail?: string; sendDedicationEmail?: boolean; signature?: string; salutation?: string; signoff?: string; privacy?: "PUBLIC" | "PRIVATE" }
+  ): Promise<void> {
+    if (this.pushing.has(id) || this.serverIdFor(id)) return;
+    const token = await getAuthToken().catch(() => null);
+    if (!token) return; // retried by syncMyTributes() after login
+    const item = this.items.find((i) => i.id === id);
+    if (!item) return;
+    this.pushing.add(id);
+    try {
+      const anyItem = item as any;
+      const cover = anyItem.photoUri || anyItem.imageUri || "";
+      const photo = await ensureRemoteMedia(cover, "photo");
+      const extraImages = (
+        await Promise.all(((anyItem.additionalImages as string[]) || []).map((u) => ensureRemoteMedia(u, "photo")))
+      ).filter((u): u is string => !!u);
+      const videos = (
+        await Promise.all(((anyItem.videoUris as string[]) || []).map((u) => ensureRemoteMedia(u, "video")))
+      ).filter((u): u is string => !!u);
+      const audio = await ensureRemoteMedia(anyItem.audioUri, "audio");
+
+      const storyText = anyItem.story || anyItem.letterBody || anyItem.excerpt || anyItem.preview || "";
+      const res = await api.tributes.create({
+        mentorName: item.mentorName,
+        kind: item.kind,
+        title: anyItem.title || anyItem.lessonTitle || item.mentorName,
+        relationship: item.relationship || "Mentor",
+        photoUri: photo || "",
+        additionalImages: extraImages,
+        videoUris: videos,
+        audioUri: audio,
+        quote: anyItem.quote || "",
+        story: storyText,
+        excerpt: anyItem.excerpt || anyItem.preview || storyText.slice(0, 200),
+        salutation: anyItem.salutation || meta?.salutation,
+        signoff: anyItem.signoff || meta?.signoff,
+        signature: anyItem.signature || meta?.signature,
+        recipientEmail: meta?.recipientEmail,
+        sendDedicationEmail: meta?.sendDedicationEmail,
+        lessonCarried: anyItem.lessonCarried || "",
+        momentToRemember: anyItem.momentToRemember || "",
+        year: anyItem.year,
+        emotion: anyItem.emotion,
+        emotionColor: anyItem.emotionColor,
+        mood: anyItem.mood,
+        templateId: anyItem.templateId,
+        frameStyle: anyItem.frameStyle,
+        typographyStyle: anyItem.typographyStyle,
+        layoutStyle: anyItem.layoutStyle || anyItem.paperStyle,
+        privacy: this.privateIds.has(id) ? "PRIVATE" : "PUBLIC",
+        isShared: !this.privateIds.has(id),
+        isPinned: item.isPinned || false,
+      });
+      const serverId: string | undefined = res?.data?.id;
+      if (!serverId) return;
+      this.serverIds.set(id, serverId);
+
+      // Swap local file paths for the uploaded URLs so the post works everywhere.
+      const current = this.items.find((i) => i.id === id) as any;
+      if (current) {
+        if (photo) {
+          if ("photoUri" in current || item.kind === "tribute") current.photoUri = photo;
+          if ("imageUri" in current || item.kind !== "tribute") current.imageUri = photo;
+        }
+        if (extraImages.length) current.additionalImages = extraImages;
+        if (videos.length) current.videoUris = videos;
+        if (audio) current.audioUri = audio;
+      }
+      this.persistUserItems();
+      this.notify();
+    } catch (error) {
+      console.debug("Post not synced yet; will retry:", error);
+    } finally {
+      this.pushing.delete(id);
+    }
+  }
+
+  /** Pushes unsynced posts, then merges the user's posts from the server. */
+  private async syncMyTributes(): Promise<void> {
+    const token = await getAuthToken().catch(() => null);
+    if (!token) return;
+
+    for (const id of [...this.userItemIds]) {
+      if (!this.serverIdFor(id)) await this.pushToBackend(id);
+    }
+
+    const res = await api.tributes.myTributes();
+    if (!Array.isArray(res?.data)) return;
+    const mapped = new Set(this.serverIds.values());
+    let changed = false;
+    for (const dto of res.data) {
+      if (mapped.has(dto.id)) continue; // already here under its local id
+      const index = this.items.findIndex((i) => i.id === dto.id);
+      const item = dtoToWallItem(dto);
+      if (index >= 0) this.items[index] = item;
+      else this.items.unshift(item);
+      this.userItemIds.add(dto.id);
+      changed = true;
+    }
+    if (changed) {
+      this.updateMentorCounts();
+      this.persistUserItems();
+    }
+  }
+
+  /** Called on sign-out: forget this user's posts so the next account starts clean. */
+  public async clearUserData(): Promise<void> {
+    this.items = this.items.filter((item) => !this.userItemIds.has(item.id));
+    this.userItemIds.clear();
+    this.serverIds.clear();
+    this.privateIds.clear();
+    this.pinOverrides.clear();
+    this.updateMentorCounts();
+    this.notify();
+    await AsyncStorage.removeItem("@honour-your-mentor/memories").catch(() => {});
+  }
+
   private persistUserItems(): void {
     const userItems = this.items.filter((item) => this.userItemIds.has(item.id));
     const serialized = JSON.stringify({
       items: userItems,
       pinOverrides: Object.fromEntries(this.pinOverrides),
+      serverIds: Object.fromEntries(this.serverIds),
+      privateIds: [...this.privateIds],
     });
     this.persistenceQueue = this.persistenceQueue
       .catch(() => undefined)

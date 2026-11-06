@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     height: 260,
     backgroundColor: Palette.deepTeal,
-    shadowColor: Palette.deepTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
     shadowRadius: 16,

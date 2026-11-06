@@ -24,12 +24,22 @@ import { AppFonts, BottomTabInset, Palette } from "@/constants/theme";
 // Shared Navigation
 import BottomNavigation from "@/components/home/BottomNavigation";
 import AudioPlaybackControls from "@/components/home/AudioPlaybackControls";
+import MemoryVideo from "@/components/MemoryVideo";
+import DemoWaveformPlayer from "@/components/DemoWaveformPlayer";
+
 
 // Types & Services
 import { memoryService } from "@/services/memoryService";
 import { WallItem } from "@/types/memoryWall";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+/** A built-in sample memory that describes a voice recording but has no audio file. */
+function isSampleVoiceMemory(item: WallItem): boolean {
+  if (item.kind !== "memory" || item.audioUri) return false;
+  if (item.audioDuration) return true;
+  return /voice|voicemail|recording|audio|spoken/i.test(`${item.title} ${item.excerpt}`);
+}
 
 export default function MemoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -511,7 +521,7 @@ export default function MemoryDetailScreen() {
           ) : null}
         </View>
 
-        {item.kind === "memory" && item.audioUri && (
+        {item.kind === "memory" && (item.audioUri || isSampleVoiceMemory(item)) && (
           <View style={styles.supportingCard}>
             <View style={styles.supportingCardHeader}>
               <View style={styles.supportingIconWrap}>
@@ -519,11 +529,16 @@ export default function MemoryDetailScreen() {
               </View>
               <Text style={styles.supportingCardTitle}>Voice memory</Text>
             </View>
-            <AudioPlaybackControls
-              uri={item.audioUri}
-              title={displayTitle}
-              durationSeconds={item.audioDuration}
-            />
+            {item.audioUri ? (
+              <AudioPlaybackControls
+                uri={item.audioUri}
+                title={displayTitle}
+                durationSeconds={item.audioDuration}
+              />
+            ) : (
+              // Sample voice memories have no recording: play the demo tribute.
+              <DemoWaveformPlayer ownerId={`detail-${item.id}`} title={displayTitle} />
+            )}
           </View>
         )}
 
@@ -603,6 +618,26 @@ export default function MemoryDetailScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Keepsake Videos */}
+        {item.kind === "memory" && item.videoUris && item.videoUris.length > 0 && (
+          <View style={styles.gallerySection}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionLine} />
+              <Text style={styles.sectionHeading}>Keepsake Videos</Text>
+              <View style={styles.sectionLine} />
+            </View>
+            <View style={styles.videoList}>
+              {item.videoUris.map((uri, index) => (
+                <MemoryVideo
+                  key={`video-${index}`}
+                  uri={uri}
+                  accessibilityLabel={`Video ${index + 1} of ${item.videoUris!.length}`}
+                />
+              ))}
+            </View>
           </View>
         )}
 
@@ -1200,6 +1235,10 @@ const styles = StyleSheet.create({
   galleryThumb: {
     width: "100%",
     height: "100%",
+  },
+  videoList: {
+    gap: 12,
+    marginTop: 12,
   },
   galleryZoomIcon: {
     position: "absolute",

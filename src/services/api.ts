@@ -111,7 +111,19 @@ export const api = {
   // Users
   users: {
     me: () => apiRequest("/users/me"),
-    updateMe: (data: { name?: string; bio?: string; avatarUri?: string }) =>
+    /** Full profile: the backend requires name, username and email on every update. */
+    updateMe: (data: {
+      name: string;
+      username: string;
+      email: string;
+      bio?: string;
+      avatarUri?: string;
+      phone?: string;
+      birthday?: string;
+      gender?: string;
+      honouring?: string[];
+      setupComplete?: boolean;
+    }) =>
       apiRequest("/users/me", { method: "PUT", body: JSON.stringify(data) }),
   },
 

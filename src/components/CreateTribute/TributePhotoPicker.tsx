@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { persistImageUri } from "@/utils/persistMedia";
 import { Ionicons } from "@expo/vector-icons";
 import { Palette } from "@/constants/theme";
 
@@ -80,7 +81,7 @@ export default function TributePhotoPicker({
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        onPhotoSelected(result.assets[0].uri, true);
+        onPhotoSelected(await persistImageUri(result.assets[0].uri), true);
       }
     } catch {
       Alert.alert("Error", "Could not load image from gallery. Please try again.");
@@ -264,7 +265,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,

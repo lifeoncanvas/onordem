@@ -1,5 +1,24 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import { type PropsWithChildren } from "react";
+import { themeCss } from "@/constants/theme";
+
+// Runs before the app bundle: reads the saved appearance (AsyncStorage on web is
+// localStorage, values JSON-free) and sets data-theme so there's no flash.
+const applySavedAppearance = `
+(function () {
+  try {
+    var pref = localStorage.getItem("@honour-your-mentor/appearance") || "dark";
+    var scheme = pref === "system"
+      ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+      : pref;
+    document.documentElement.setAttribute("data-theme", scheme === "light" ? "light" : "dark");
+    var lang = localStorage.getItem("@honour-your-mentor/language");
+    if (lang === "hi") document.documentElement.setAttribute("lang", "hi");
+  } catch (e) {
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+})();
+`;
 
 /**
  * Root HTML configuration for Honour Your Mentor on Web.
@@ -28,7 +47,6 @@ export default function Root({ children }: PropsWithChildren) {
                 font-display: swap;
               }
               html, body {
-                background-color: #000000;
                 margin: 0;
                 padding: 0;
                 height: 100%;
@@ -45,6 +63,10 @@ export default function Root({ children }: PropsWithChildren) {
             `,
           }}
         />
+        {/* Appearance tokens (Dark / Light) + apply the saved choice before first paint. */}
+        <style id="hym-theme-tokens" dangerouslySetInnerHTML={{ __html: themeCss() }} />
+        <meta name="theme-color" content="#000000" />
+        <script dangerouslySetInnerHTML={{ __html: applySavedAppearance }} />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>

@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppFonts, Palette } from "@/constants/theme";
+import { formatClock, useDemoAudio } from "@/services/demoAudio";
 
 export interface VoiceLessonItem {
   id: string;
@@ -38,6 +39,7 @@ export default function VoiceLessonCard({
   onPlayPress,
   onMentorPress,
 }: VoiceLessonCardProps) {
+  const audio = useDemoAudio(`voice-lesson-${item.id}`);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(item.likes);
 
@@ -91,13 +93,17 @@ export default function VoiceLessonCard({
             {/* Audio Waveform Player Bar */}
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={onPlayPress || onPress}
+              onPress={(e: any) => {
+                e?.stopPropagation?.();
+                audio.toggle();
+                onPlayPress?.();
+              }}
               style={styles.playerContainer}
               accessibilityRole="button"
-              accessibilityLabel={`Play voice memo: ${item.title}`}
+              accessibilityLabel={`${audio.isPlaying ? "Pause" : "Play"} voice memo: ${item.title}`}
             >
               <View style={styles.playCircle}>
-                <Ionicons name="play" size={14} color={Palette.textOnPrimary} />
+                <Ionicons name={audio.isPlaying ? "pause" : "play"} size={14} color={Palette.textOnPrimary} />
               </View>
 
               {/* Waveform Sound Bars */}
@@ -106,13 +112,19 @@ export default function VoiceLessonCard({
                   (h, idx) => (
                     <View
                       key={`wf-${idx}`}
-                      style={[styles.waveformBar, { height: h }]}
+                      style={[
+                        styles.waveformBar,
+                        { height: h },
+                        idx < Math.round(audio.progress * 17) && { backgroundColor: Palette.accentPeach },
+                      ]}
                     />
                   )
                 )}
               </View>
 
-              <Text style={styles.durationText}>{item.audioDuration || "0:45"}</Text>
+              <Text style={styles.durationText}>
+                {audio.isPlaying || audio.currentTime > 0 ? formatClock(audio.currentTime) : formatClock(audio.duration)}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (

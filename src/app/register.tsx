@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Palette } from "@/constants/theme";
+import { Palette, SystemColors, TextStyles, Layout } from "@/constants/theme";
 import { api, setAuthToken } from "@/services/api";
 import { userProfileService } from "@/services/userProfileService";
 
@@ -89,9 +89,9 @@ export default function Register() {
               "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
           });
         }
-        router.replace("/home");
+        router.replace("/profile-setup");
       } else {
-        router.replace("/home");
+        router.replace("/profile-setup");
       }
     } catch (err: any) {
       const msg = err.message || "Registration failed";
@@ -104,9 +104,9 @@ export default function Register() {
       } else {
         Alert.alert(
           "Registration Notice",
-          `${msg}. Would you like to proceed to Home in demo mode?`,
+          `${msg}. Would you like to continue in demo mode?`,
           [
-            { text: "Proceed to Home", onPress: () => router.replace("/home") },
+            { text: "Continue", onPress: () => router.replace("/profile-setup") },
             { text: "Retry", style: "cancel" },
           ]
         );
@@ -119,9 +119,6 @@ export default function Register() {
   return (
     <View style={styles.background}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-
-      {/* Mint Mist ambient accent */}
-      <View style={styles.ambientAura} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -143,9 +140,12 @@ export default function Register() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
           >
-            <Ionicons name="arrow-back" size={22} color={Palette.oceanTeal} />
+            <Ionicons name="chevron-back" size={26} color={SystemColors.blue} />
+            <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
 
           <View style={styles.container}>
@@ -158,7 +158,7 @@ export default function Register() {
               />
             </View>
 
-            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.title} accessibilityRole="header">Create Account</Text>
 
             <Text style={styles.subtitle}>
               Start remembering and celebrating the people who shaped your journey.
@@ -167,54 +167,84 @@ export default function Register() {
             {/* Error Banner */}
             {errorMessage && (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
+                <Ionicons name="alert-circle" size={16} color={SystemColors.red} />
                 <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
 
-            <TextInput
-              placeholder="Full Name"
-              placeholderTextColor={Palette.textMuted}
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-            />
-
-            <TextInput
-              placeholder="Email"
-              placeholderTextColor={Palette.textMuted}
-              style={styles.input}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
-
-            <TextInput
-              placeholder="Phone number (+country code, optional)"
-              placeholderTextColor={Palette.textMuted}
-              style={styles.input}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <TextInput
-              placeholder="Password (min 8 characters)"
-              placeholderTextColor={Palette.textMuted}
-              style={styles.input}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            {/* Inset grouped fields (iOS Settings style) */}
+            <View style={styles.fieldGroup}>
+              <TextInput
+                placeholder="Full Name"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                autoComplete="name"
+                textContentType="name"
+                autoCapitalize="words"
+                returnKeyType="next"
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Full name"
+              />
+              <View style={styles.separator} />
+              <TextInput
+                placeholder="Email"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                value={email}
+                onChangeText={setEmail}
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Email"
+              />
+              <View style={styles.separator} />
+              <TextInput
+                placeholder="Phone (Optional)"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+                value={phone}
+                onChangeText={setPhone}
+                autoCapitalize="none"
+                autoCorrect={false}
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Phone number, optional"
+              />
+              <View style={styles.separator} />
+              <TextInput
+                placeholder="Password"
+                placeholderTextColor={Palette.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="go"
+                onSubmitEditing={handleRegister}
+                value={password}
+                onChangeText={setPassword}
+                selectionColor={SystemColors.blue}
+                accessibilityLabel="Password"
+              />
+            </View>
+            <Text style={styles.fieldFooter}>
+              Use at least 8 characters. Include a country code with your phone number.
+            </Text>
 
             <TouchableOpacity
               style={[styles.button, loading && { opacity: 0.7 }]}
               onPress={handleRegister}
-              activeOpacity={0.88}
+              activeOpacity={0.7}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityState={{ busy: loading, disabled: loading }}
             >
               {loading ? (
                 <ActivityIndicator color={Palette.textOnPrimary} size="small" />
@@ -225,10 +255,12 @@ export default function Register() {
 
             <TouchableOpacity
               onPress={() => router.replace("/login")}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
+              style={styles.loginTouch}
+              accessibilityRole="link"
             >
               <Text style={styles.loginText}>
-                Already have an account? <Text style={styles.loginLink}>Login</Text>
+                Already have an account? <Text style={styles.loginLink}>Log In</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -244,113 +276,110 @@ const styles = StyleSheet.create({
   },
   background: {
     flex: 1,
-    backgroundColor: Palette.iceWhite,
-  },
-  ambientAura: {
-    position: "absolute",
-    top: -120,
-    right: -80,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: "rgba(32, 32, 32, 0.4)",
+    backgroundColor: SystemColors.systemBackground,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: Layout.marginWide,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Palette.mintMist,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
+    minHeight: Layout.minTouch,
+    marginLeft: -8,
+    paddingRight: 8,
     marginBottom: 8,
   },
+  backButtonText: {
+    ...TextStyles.body,
+    color: SystemColors.blue,
+    marginLeft: -2,
+  },
   container: {
-    maxWidth: 420,
+    maxWidth: 400,
     width: "100%",
     alignSelf: "center",
   },
   logoWrapper: {
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   logoImage: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: Palette.cream,
-    letterSpacing: -0.5,
+    ...TextStyles.largeTitle,
+    color: SystemColors.label,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Palette.textSecondary,
-    marginBottom: 20,
+    ...TextStyles.body,
+    color: SystemColors.secondaryLabel,
+    marginBottom: 24,
   },
   errorContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "rgba(255, 107, 107, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 107, 107, 0.35)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    backgroundColor: "rgba(255, 69, 58, 0.15)",
+    borderRadius: Layout.radiusSmall,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   errorText: {
-    color: "#FF8E8E",
-    fontSize: 13,
-    fontWeight: "600",
+    ...TextStyles.footnote,
+    color: SystemColors.label,
     flex: 1,
   },
+  fieldGroup: {
+    backgroundColor: SystemColors.secondarySystemBackground,
+    borderRadius: Layout.radiusMedium,
+    overflow: "hidden",
+  },
   input: {
-    backgroundColor: Palette.pureWhite,
-    borderWidth: 1,
-    borderColor: Palette.borderSubtle,
-    borderRadius: 16,
+    height: Layout.controlHeight,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: Palette.deepTeal,
-    fontSize: 15,
-    marginBottom: 14,
+    ...TextStyles.body,
+    color: SystemColors.label,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: SystemColors.separator,
+    marginLeft: 16,
+  },
+  fieldFooter: {
+    ...TextStyles.footnote,
+    color: SystemColors.secondaryLabel,
+    marginTop: 8,
+    marginHorizontal: 16,
+    marginBottom: 24,
   },
   button: {
-    backgroundColor: Palette.oceanTeal,
-    borderRadius: 24,
-    height: 52,
+    backgroundColor: SystemColors.label,
+    borderRadius: Layout.radiusMedium,
+    height: Layout.controlHeight,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
-    marginBottom: 20,
-    shadowColor: Palette.oceanTeal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
+    marginBottom: 8,
   },
   buttonText: {
-    color: Palette.textOnPrimary,
-    fontSize: 16,
-    fontWeight: "700",
+    ...TextStyles.headline,
+    color: "#000000",
+  },
+  loginTouch: {
+    minHeight: Layout.minTouch,
+    justifyContent: "center",
   },
   loginText: {
+    ...TextStyles.subheadline,
     textAlign: "center",
-    color: Palette.textSecondary,
-    fontSize: 14,
+    color: SystemColors.secondaryLabel,
   },
   loginLink: {
-    color: Palette.oceanTeal,
-    fontWeight: "700",
+    color: SystemColors.blue,
+    fontWeight: "600",
   },
 });

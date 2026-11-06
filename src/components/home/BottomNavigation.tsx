@@ -3,7 +3,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Palette } from "@/constants/theme";
+import { Layout, SystemColors } from "@/constants/theme";
+import { useT, type StringKey } from "@/i18n";
 
 export type NavTab =
   | "home"
@@ -23,18 +24,22 @@ interface BottomNavigationProps {
 
 interface TabItem {
   key: NavTab;
-  label: string;
+  labelKey: StringKey;
   icon: keyof typeof Ionicons.glyphMap;
   activeIcon: keyof typeof Ionicons.glyphMap;
   activeColor: string;
 }
 
+// HIG › Tab bars: filled symbols, single-word labels, one tint for the selection.
+const ACTIVE = SystemColors.blue;
+const INACTIVE = SystemColors.tabInactive;
+
 const FIVE_TABS: TabItem[] = [
-  { key: "home", label: "Home", icon: "home-outline", activeIcon: "home", activeColor: "#111111" },
-  { key: "discover", label: "Discover", icon: "compass-outline", activeIcon: "compass", activeColor: "#111111" },
-  { key: "create", label: "Create", icon: "add", activeIcon: "add", activeColor: "#111111" },
-  { key: "saved", label: "Saved", icon: "bookmark-outline", activeIcon: "bookmark", activeColor: "#111111" },
-  { key: "profile", label: "Profile", icon: "person-outline", activeIcon: "person", activeColor: "#111111" },
+  { key: "home", labelKey: "nav.home", icon: "home-outline", activeIcon: "home", activeColor: ACTIVE },
+  { key: "discover", labelKey: "nav.discover", icon: "compass-outline", activeIcon: "compass", activeColor: ACTIVE },
+  { key: "create", labelKey: "nav.create", icon: "add-circle-outline", activeIcon: "add-circle", activeColor: ACTIVE },
+  { key: "saved", labelKey: "nav.saved", icon: "bookmark-outline", activeIcon: "bookmark", activeColor: ACTIVE },
+  { key: "profile", labelKey: "nav.profile", icon: "person-circle-outline", activeIcon: "person-circle", activeColor: ACTIVE },
 ];
 
 export default function BottomNavigation({
@@ -43,6 +48,7 @@ export default function BottomNavigation({
   onCreatePress,
 }: BottomNavigationProps) {
   const insets = useSafeAreaInsets();
+  const t = useT();
 
   const handleTabPress = (tabKey: NavTab) => {
     if (onTabChange) {
@@ -72,7 +78,7 @@ export default function BottomNavigation({
   };
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
       <View style={styles.container}>
         {FIVE_TABS.map((tab) => {
           const isActive =
@@ -81,41 +87,28 @@ export default function BottomNavigation({
             (activeTab === "mentors" && tab.key === "discover") ||
             (activeTab === "gratitude" && tab.key === "saved");
 
-          const isCreate = tab.key === "create";
-          const iconColor = isActive || isCreate ? tab.activeColor : "#777777";
+          const iconColor = isActive ? tab.activeColor : INACTIVE;
 
           return (
             <TouchableOpacity
               key={tab.key}
-              activeOpacity={0.75}
+              activeOpacity={0.6}
               onPress={() => handleTabPress(tab.key)}
-              style={[styles.tabButton, isCreate && styles.createTabButton]}
-              accessibilityRole="button"
-              accessibilityLabel={tab.label}
+              style={styles.tabButton}
+              accessibilityRole="tab"
+              accessibilityLabel={t(tab.labelKey)}
               accessibilityState={{ selected: isActive }}
             >
-              {isActive && !isCreate && (
-                <View style={[styles.activePillIndicator, { backgroundColor: tab.activeColor }]} />
-              )}
-              {isCreate ? (
-                <View style={styles.createButtonCircle}>
-                  <Ionicons name="add" size={25} color={Palette.textOnPrimary} />
-                </View>
-              ) : (
-                <Ionicons
-                  name={isActive ? tab.activeIcon : tab.icon}
-                  size={21}
-                  color={iconColor}
-                />
-              )}
+              <Ionicons
+                name={isActive ? tab.activeIcon : tab.icon}
+                size={25}
+                color={iconColor}
+              />
               <Text
-                style={[
-                  styles.tabLabel,
-                  isActive && { color: tab.activeColor, fontWeight: "800" },
-                ]}
+                style={[styles.tabLabel, { color: iconColor }]}
                 numberOfLines={1}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </Text>
             </TouchableOpacity>
           );
@@ -131,56 +124,32 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingTop: 6,
-    backgroundColor: "#FFFFFF",
+    // Chrome material: near-opaque so content scrolling underneath stays legible.
+    backgroundColor: SystemColors.barMaterial,
     zIndex: 99,
-    borderTopWidth: 1,
-    borderTopColor: "#E8E8E8",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: SystemColors.separator,
   },
   container: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    height: 58,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 6,
+    height: 49,
+    width: "100%",
+    maxWidth: 600,
+    alignSelf: "center",
   },
   tabButton: {
     flex: 1,
+    minHeight: Layout.minTouch,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
-    position: "relative",
-  },
-  createTabButton: {
-    transform: [{ translateY: -5 }],
-  },
-  createButtonCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  activePillIndicator: {
-    position: "absolute",
-    top: 0,
-    width: 20,
-    height: 3,
-    borderRadius: 2,
+    paddingTop: 4,
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#777777",
-    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "500",
+    marginTop: 2,
   },
 });

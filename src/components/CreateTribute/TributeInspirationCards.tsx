@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   },
   cardActive: {
     borderColor: Palette.turquoise,
-    shadowColor: Palette.turquoise,
+    shadowColor: "#000000",
     shadowOpacity: 0.22,
     shadowRadius: 10,
   },

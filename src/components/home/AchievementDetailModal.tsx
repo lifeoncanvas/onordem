@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   },
   chipItemActive: {
     backgroundColor: Palette.pureWhite,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
     shadowRadius: 8,

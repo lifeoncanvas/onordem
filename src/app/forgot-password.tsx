@@ -218,8 +218,8 @@ export default function ForgotPasswordScreen() {
       setErrorMessage("Please enter a new password.");
       return;
     }
-    if (newPassword.length < 6) {
-      setErrorMessage("Password must be at least 6 characters long.");
+    if (newPassword.length < 8) {
+      setErrorMessage("Password must be at least 8 characters long.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -231,7 +231,7 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
 
     try {
-      await updatePassword(newPassword);
+      await updatePassword(newPassword, email.trim(), otp.join(""));
       setIsSuccessModalVisible(true);
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to update password. Please try again.");
@@ -442,11 +442,11 @@ export default function ForgotPasswordScreen() {
                     ))}
                   </View>
 
-                  {/* Testing OTP Helper Note */}
+                  {/* OTP Helper Note */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#1C1C1E", borderRadius: 10, padding: 10, marginBottom: 16 }}>
                     <Ionicons name="information-circle-outline" size={16} color={Palette.accentSky} />
                     <Text style={{ color: "#A1A1AA", fontSize: 12, flex: 1, lineHeight: 16 }}>
-                      Code sent from info@onodem.com. If testing or email is delayed, verification code is <Text style={{ color: "#FFFFFF", fontWeight: "800" }}>12345</Text>.
+                      Code sent from info@onodem.com. It expires in 15 minutes. Can&apos;t find it? Check your spam folder or resend the code.
                     </Text>
                   </View>
 

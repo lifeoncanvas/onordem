@@ -188,6 +188,40 @@ export default function AddMemoryModal({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.gridContent}
             >
+              {/* Upload photos & videos */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  onSelectOption("media");
+                  onClose();
+                }}
+                style={styles.mediaCard}
+                accessibilityRole="button"
+                accessibilityLabel="Upload photos, videos and audio"
+                accessibilityHint="Choose moments from your library or record a voice note"
+              >
+                <View style={styles.mediaIcons} accessibilityElementsHidden>
+                  <View style={[styles.mediaIconTile, { backgroundColor: "#16283D" }]}>
+                    <Ionicons name="images" size={17} color={Palette.accentSky} />
+                  </View>
+                  <View style={[styles.mediaIconTile, styles.mediaIconOverlap, { backgroundColor: "#173434" }]}>
+                    <Ionicons name="videocam" size={17} color={Palette.accentMint} />
+                  </View>
+                  <View style={[styles.mediaIconTile, styles.mediaIconOverlap, { backgroundColor: "#3A2F10" }]}>
+                    <Ionicons name="mic" size={17} color={Palette.accentAmber} />
+                  </View>
+                </View>
+                <View style={styles.mediaText}>
+                  <Text style={styles.mediaTitle}>Photos, Videos &amp; Audio</Text>
+                  <Text style={styles.mediaDesc}>
+                    Upload moments from your library, or record a voice note.
+                  </Text>
+                </View>
+                <View style={[styles.arrowCircle, { backgroundColor: "rgba(10, 132, 255, 0.16)" }]}>
+                  <Ionicons name="arrow-up" size={15} color={Palette.accentSky} />
+                </View>
+              </TouchableOpacity>
+
               <View style={styles.grid}>
                 {STUDIO_CARDS.map((card) => (
                   <TouchableOpacity
@@ -356,6 +390,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+  },
+
+  // ── Photos & Videos card ──────────────────────────────────────────────────
+  mediaCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 20,
+    backgroundColor: Palette.surfaceCard,
+    borderWidth: 1,
+    borderColor: Palette.borderSubtle,
+  },
+  mediaIcons: { flexDirection: "row", alignItems: "center" },
+  mediaIconTile: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Palette.surfaceCard,
+  },
+  mediaIconOverlap: { marginLeft: -10 },
+  mediaText: { flex: 1 },
+  mediaTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: Palette.textPrimary,
+    letterSpacing: -0.2,
+  },
+  mediaDesc: {
+    fontSize: 13,
+    color: Palette.textSecondary,
+    marginTop: 2,
+    lineHeight: 18,
   },
 
   // ── Card ──────────────────────────────────────────────────────────────────

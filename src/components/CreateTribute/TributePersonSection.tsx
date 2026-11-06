@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1.2,
     borderColor: Palette.borderSubtle,
-    shadowColor: Palette.oceanTeal,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   chipSelected: {
     backgroundColor: Palette.mintMist,
     borderColor: Palette.turquoise,
-    shadowColor: Palette.turquoise,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
